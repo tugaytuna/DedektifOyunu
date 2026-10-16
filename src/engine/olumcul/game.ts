@@ -287,6 +287,7 @@ function evaluateRequirements(state: StoryGameState, actionId: string, requires:
 export function storyActionBlockReason(state: StoryGameState, actionId: string): string | null {
   const action = actionById(actionId);
   if (!action) return "Bilinmeyen eylem.";
+  if (actionId === "lockpick_security" && state.unlockedLocations.includes("security")) return "Kapı açık; güvenlik odasına girebilirsin.";
   if (!action.phase.includes(state.phase)) return "Bu aşamada kullanılamaz.";
   if (action.location && action.location !== state.locationId) return "Farklı konumda.";
   if (action.openingMoves && state.phase === "opening" && action.openingMoves > state.openingMovesRemaining) return "Açılış hamlesi kalmadı.";
@@ -299,6 +300,7 @@ function runAction(state: StoryGameState, command: Extract<StoryCommand, { type:
   if (!action) return { state, notifications: [], error: "Bilinmeyen eylem." };
   if (!action.phase.includes(state.phase)) return { state, notifications: [], error: "Bu eylem mevcut oyun aşamasında kullanılamaz." };
   if (action.location && action.location !== state.locationId) return { state, notifications: [], error: "Bu eylem için doğru konumda değilsin." };
+  if (action.id === "lockpick_security" && state.unlockedLocations.includes("security")) return { state, notifications: [], error: "Kapı zaten açık. Koridordan güvenlik odasına girebilirsin." };
   if (action.openingMoves && state.phase === "opening" && action.openingMoves > state.openingMovesRemaining) return { state, notifications: [], error: "Açılışta en fazla beş ücretli hamle yapabilirsin. İstersen şimdi çıkabilirsin." };
   if (action.id === "clean_glass" && state.evidence.glass_fingerprint?.physical === "collected") return { state, notifications: [], error: "Dedektif bu izi daha önce topladı; geriye dönük temizlenemez." };
   const issue = evaluateRequirements(state, action.id, action.requires, action.condition);

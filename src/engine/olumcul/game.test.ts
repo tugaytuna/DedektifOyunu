@@ -99,6 +99,9 @@ describe("Ölümcül Proje mekanikleri", () => {
     }
     expect(results).toEqual([false, false, false, false, true]);
     expect(state.unlockedLocations).toContain("security");
+    expect(storyActionBlockReason(state, "lockpick_security")).toMatch(/Kapı açık/);
+    expect(act(state, "lockpick_security").error).toMatch(/zaten açık/);
+    expect(state.randomAttempts.lockpick_attempt).toBe(5);
   });
 
   it("Samuel’in varlığı seed’e göre değişir; yalan ve susturma girişimi şüpheyi etkiler", () => {
