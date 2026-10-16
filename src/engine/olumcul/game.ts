@@ -386,6 +386,7 @@ function runDialogue(state: StoryGameState, dialogueId: string, choiceId: string
   const dialogue = dialogueById(dialogueId);
   if (!dialogue) return { state, notifications: [], error: "Konuşma bulunamadı." };
   if (state.phase !== "investigation") return { state, notifications: [], error: "Bu görüşme yalnızca soruşturma sırasında yapılabilir." };
+  if (state.flags[`dialogue_completed_${dialogueId}`] === true) return { state, notifications: [], error: "Bu görüşme zaten yanıtlandı." };
   if (dialogue.character === "samuel" && (!state.samuelPresent || state.locationId !== "fire_escape")) return { state, notifications: [], error: "Samuel şu anda burada değil." };
   if (dialogue.character === "marcus" && (state.locationId !== "security" || !state.unlockedLocations.includes("security"))) return { state, notifications: [], error: "Marcus ile konuşmak için güvenlik odasına erişmelisin." };
   if (dialogue.character === "noah" && (state.locationId !== "laboratory" || !state.flags.password_unlocked)) return { state, notifications: [], error: "Noah ile konuşmak için laboratuvar hücresine erişmelisin." };
@@ -395,25 +396,25 @@ function runDialogue(state: StoryGameState, dialogueId: string, choiceId: string
     if (!state.detectiveEncounterAvailable) return { state, notifications: [], error: "Dedektifle şu anda karşılaşmıyorsun." };
     if (choiceId === "truthful_answer") {
       const id = `statement_${state.statements.length + 1}`;
-      const next = { ...state, statements: [...state.statements, { id, speaker: "player", recipient: "detective", topic: "fire_escape_presence", value: "trueful_answer", time: state.investigationElapsedMinutes, knownBy: ["player", "detective"] }], detectiveEncounterAvailable: false };
+      const next = { ...state, statements: [...state.statements, { id, speaker: "player", recipient: "detective", topic: "fire_escape_presence", value: "trueful_answer", time: state.investigationElapsedMinutes, knownBy: ["player", "detective"] }], detectiveEncounterAvailable: false, flags: { ...state.flags, dialogue_completed_detective_encounter: true } };
       return { state: next, notifications: ["Doğru bildiğin kadarıyla yanıt verdin; ifade kayda geçti."] };
     }
     if (choiceId === "lie") {
       const id = `statement_${state.statements.length + 1}`;
-      let next = { ...state, statements: [...state.statements, { id, speaker: "player", recipient: "detective", topic: "fire_escape_presence", value: "denies", time: state.investigationElapsedMinutes, knownBy: ["player", "detective"], lie: true }], detectiveEncounterAvailable: false };
+      let next: StoryGameState = { ...state, statements: [...state.statements, { id, speaker: "player", recipient: "detective", topic: "fire_escape_presence", value: "denies", time: state.investigationElapsedMinutes, knownBy: ["player", "detective"], lie: true }], detectiveEncounterAvailable: false, flags: { ...state.flags, dialogue_completed_detective_encounter: true } };
       next = rememberContradictions(next);
       return { state: next, notifications: [next.exposedLies.includes(id) ? "Dedektif, bildiği bir olguyla yanıtındaki çelişkiyi fark etti." : "Yanıt kayda geçti. Dedektifin bilmediği bir bilgiyle çelişki kurulmadı."] };
     }
-    if (choiceId === "evasive_answer") return { state: { ...state, detectiveEncounterAvailable: false }, notifications: ["Kaçamak yanıtın kayda geçti; dedektifin iç bulguları sana gösterilmedi."] };
+    if (choiceId === "evasive_answer") return { state: { ...state, detectiveEncounterAvailable: false, flags: { ...state.flags, dialogue_completed_detective_encounter: true } }, notifications: ["Kaçamak yanıtın kayda geçti; dedektifin iç bulguları sana gösterilmedi."] };
     if (choiceId === "attempt_leave") {
       const blocked = known(state, "player_used_fire_escape_on_murder_night") && (state.suspicions.player ?? 0) >= 2;
-      return { state: { ...state, detectiveEncounterAvailable: false }, notifications: [blocked ? "Dedektif, bildiği somut bilgi nedeniyle ayrılmana izin vermedi; henüz suçlama kararı vermedi." : "Karşılaşmadan ayrıldın; dedektifin konumu haritada gösterilmiyor."] };
+      return { state: { ...state, detectiveEncounterAvailable: false, flags: { ...state.flags, dialogue_completed_detective_encounter: true } }, notifications: [blocked ? "Dedektif, bildiği somut bilgi nedeniyle ayrılmana izin vermedi; henüz suçlama kararı vermedi." : "Karşılaşmadan ayrıldın; dedektifin konumu haritada gösterilmiyor."] };
     }
     return { state, notifications: [], error: "Geçersiz diyalog seçimi." };
   }
   if (!entry) return { state, notifications: [], error: "Bu diyalog seçeneği henüz tanımlanmamış." };
   const id = `statement_${state.statements.length + 1}`;
-  let next = { ...state, statements: [...state.statements, { id, speaker: "player", recipient: dialogue.character, topic: `${dialogue.character}:${choiceId}`, value: entry.text, time: state.investigationElapsedMinutes, knownBy: ["player"], lie: choiceId === "deny" || choiceId === "claim_authority" }] };
+  let next = { ...state, flags: { ...state.flags, [`dialogue_completed_${dialogueId}`]: true }, statements: [...state.statements, { id, speaker: "player", recipient: dialogue.character, topic: `${dialogue.character}:${choiceId}`, value: entry.text, time: state.investigationElapsedMinutes, knownBy: ["player"], lie: choiceId === "deny" || choiceId === "claim_authority" }] };
   const messages: string[] = [];
   for (const effect of entry.effects ?? []) { const applied = applyEffect(next, effect); next = applied.state; messages.push(...applied.messages); }
   if (dialogue.character === "samuel" && choiceId === "deny") next = rememberContradictions({ ...next, statements: next.statements.map((statement) => statement.id === id ? { ...statement, topic: "fire_escape_presence" } : statement) });

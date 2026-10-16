@@ -109,8 +109,8 @@ describe("Ölümcül Proje mekanikleri", () => {
     let state = { ...present, locationId: "fire_escape" };
     state = dispatchStoryAction(state, { type: "dialogue", dialogueId: "samuel_first", choiceId: "deny" }).state;
     expect(state.suspicions.player).toBe(1);
-    state = dispatchStoryAction(state, { type: "dialogue", dialogueId: "samuel_first", choiceId: "persuade" }).state;
-    expect(state.samuelSilenced).toBe(true);
+    expect(dispatchStoryAction(state, { type: "dialogue", dialogueId: "samuel_first", choiceId: "persuade" }).error).toMatch(/zaten yanıtlandı/);
+    expect(state.flags.dialogue_completed_samuel_first).toBe(true);
     expect(state.suspicions.player).toBe(1);
   });
 
