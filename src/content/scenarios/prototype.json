@@ -1,0 +1,61 @@
+{
+  "id": "prototype",
+  "version": 1,
+  "title": "Soğuk Dosya — Test Senaryosu",
+  "fileNumber": "DOSYA 84-K / ÖRNEK",
+  "initialTimeMinutes": 845,
+  "detectiveRules": { "accusationSuspicionThreshold": 75, "minimumVerifiedCriticalLinks": 2 },
+  "locations": [
+    {
+      "id": "study",
+      "title": "Eski Çalışma Odası",
+      "subtitle": "İnceleme alanı · Kuzey kanadı",
+      "image": "/scenes/study.svg",
+      "travelMinutes": 0,
+      "hotspots": [
+        { "id": "desk", "label": "Çalışma masası", "x": 48, "y": 62, "description": "Masanın üzerinde farklı tarihlere ait birkaç not ve bir zarf duruyor.", "factId": "desk_notes", "evidenceId": "paper_trail", "timeCost": 8 },
+        { "id": "shelf", "label": "Arşiv rafı", "x": 76, "y": 39, "description": "Raflarda eski kayıtlar düzenli biçimde sıralanmış. Bir klasörün yeri boş.", "factId": "archive_gap", "timeCost": 6 },
+        { "id": "envelope", "label": "Mühürlü zarf", "x": 26, "y": 48, "description": "Üzerinde yalnızca tarih ve kısa bir dosya kodu var.", "factId": "sealed_note", "itemId": "envelope", "evidenceId": "sealed_envelope", "timeCost": 5 }
+      ]
+    },
+    {
+      "id": "archive",
+      "title": "Şehir Arşivi",
+      "subtitle": "Kamu kayıtları · Zemin kat",
+      "image": "/scenes/archive.svg",
+      "travelMinutes": 18,
+      "unlockedBy": "archive_open",
+      "hotspots": [
+        { "id": "ledger", "label": "Kayıt defteri", "x": 52, "y": 55, "description": "Ziyaretçi kayıtlarında aynı gün için iki ayrı düzeltme bulunuyor.", "factId": "ledger_changes", "evidenceId": "visitor_ledger", "timeCost": 10 },
+        { "id": "clerk_file", "label": "Başvuru dosyası", "x": 77, "y": 38, "description": "Dosyada başvurunun alındığı ve yeniden işlendiği saatler yer alıyor.", "factId": "application_times", "evidenceId": "visitor_ledger", "timeCost": 7 }
+      ]
+    }
+  ],
+  "characters": [
+    { "id": "mira", "name": "Mira Demir", "role": "Arşiv görevlisi", "portrait": "MD", "locationId": "study", "summary": "Kayıtların düzenlenmesine yardım ediyor.", "dialogueId": "mira" },
+    { "id": "cem", "name": "Cem Aral", "role": "Dosya sorumlusu", "portrait": "CA", "locationId": "archive", "summary": "Eski başvuru dosyalarından sorumlu.", "dialogueId": "cem" }
+  ],
+  "evidence": [
+    { "id": "paper_trail", "title": "Çalışma notları", "kind": "Belge", "description": "Farklı tarihlerde yazılmış kısa notlar.", "criticalLinkToPlayer": false },
+    { "id": "sealed_envelope", "title": "Mühürlü zarf", "kind": "Nesne", "description": "Dosya kodu taşıyan, henüz açılmamış zarf.", "criticalLinkToPlayer": true },
+    { "id": "visitor_ledger", "title": "Ziyaretçi kayıtları", "kind": "Kayıt", "description": "Arşiv giriş ve başvuru saatlerini içeren kayıt.", "criticalLinkToPlayer": true }
+  ],
+  "dialogues": {
+    "mira": {
+      "prompt": "Mira kayıt kutularını kapatıp sana dönüyor.",
+      "choices": [
+        { "id": "ask_records", "text": "Bugün hangi kayıtları düzenlediniz?", "response": "Günün başında başvuru defterini kontrol ettim. Birkaç satırın yeniden yazılması gerekti.", "timeCost": 7, "suspicion": 0, "statement": { "topic": "records_today", "value": "başvuru defteri yeniden düzenlendi" } },
+        { "id": "ask_envelope", "text": "Bu zarf hakkında bir şey biliyor musunuz?", "response": "Kodu tanıdık geliyor ama içeriğini görmedim. Arşivdeki karşılığını bulmak gerekebilir.", "timeCost": 8, "suspicion": 0, "requiresFact": "sealed_note", "statement": { "topic": "envelope", "value": "kod tanıdık, içerik bilinmiyor" } },
+        { "id": "press_mira", "text": "Kayıtları neden yeniden yazdınız?", "response": "Eski kâğıtlar okunmuyordu. Yaptığım değişiklikleri kenar notlarında işaretledim.", "timeCost": 7, "suspicion": 12, "statement": { "topic": "records_reason", "value": "okunabilirlik için düzeltildi" } }
+      ]
+    },
+    "cem": {
+      "prompt": "Cem, masanın üzerinden kayıt defterini uzatıyor.",
+      "choices": [
+        { "id": "ask_visitors", "text": "Ziyaretçi kayıtlarında ne fark ettiniz?", "response": "Bazı saatler sonradan eklenmiş. Eski ve yeni yazıyı karşılaştırmak mümkün.", "timeCost": 8, "suspicion": 0, "statement": { "topic": "ledger", "value": "bazı saatler sonradan eklendi" } },
+        { "id": "ask_application", "text": "Başvuru dosyasını kim yeniden işledi?", "response": "Dosyanın işlem geçmişi klasörde duruyor; görevli hanesi boş bırakılmış.", "timeCost": 8, "suspicion": 0, "requiresFact": "application_times", "statement": { "topic": "application", "value": "işlem geçmişi var, görevli alanı boş" } },
+        { "id": "pressure_cem", "text": "Bu değişiklikleri siz mi yaptınız?", "response": "Hayır. Ben yalnızca kayıtları teslim aldım. Defterdeki mürekkep örnekleri incelenebilir.", "timeCost": 7, "suspicion": 14, "statement": { "topic": "ledger_changes", "value": "değişiklikleri yapmadığını söylüyor" } }
+      ]
+    }
+  }
+}

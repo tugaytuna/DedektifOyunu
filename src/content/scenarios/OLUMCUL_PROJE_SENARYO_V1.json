@@ -1,0 +1,1079 @@
+{
+  "schemaVersion": "1.0.0-authoring",
+  "id": "olumcul_proje",
+  "title": "Ölümcül Proje",
+  "locale": "tr-TR",
+  "status": "authoring_not_engine_bound",
+  "engineCompatibility": {
+    "adapterVersion": 1,
+    "authoringVersion": "1.0.0-authoring",
+    "travelMinutes": 5,
+    "detectiveVisits": [
+      { "at": 0, "location": "fire_escape" },
+      { "at": 60, "location": "office" },
+      { "at": 150, "location": "lobby" },
+      { "at": 300, "location": "security" },
+      { "at": 600, "location": "laboratory" },
+      { "at": 1200, "location": "office" },
+      { "at": 2100, "location": "security" },
+      { "at": 3300, "location": "laboratory" }
+    ],
+    "chargeRule": {
+      "directEvidence": "glass_fingerprint",
+      "corroborationEvidence": ["samuel_testimony", "lobby_footage", "lab_access_log"],
+      "minimumCorroboration": 2,
+      "counterevidence": ["threat_notes", "fake_footprint"]
+    },
+    "convictionRule": {
+      "directEvidence": "glass_fingerprint",
+      "minimumIndependentSupport": 2,
+      "requiresExposedLie": true
+    },
+    "trialResponses": {
+      "presence": { "admit_presence": "consistent", "job": "unverified", "meeting": "unverified" },
+      "strongest_evidence": { "admit_limited_fact": "consistent", "deny": "contradiction", "offer_alternative_explanation": "unverified" },
+      "closing": { "maintain_prior_story": "recheck", "admit_limited_facts_deny_murder": "consistent", "emphasize_other_explanations": "consistent" }
+    },
+    "assumptions": {
+      "detectiveVisitCadence": "Öneri: tabloda tanımlı ilk ziyaret takvimi; kullanıcı testiyle ayarlanmalı.",
+      "chargeThreshold": "Öneri: kimliği belirlenmiş bardak izi + iki bağımsız doğrulama + karşı delillerin incelenmesi; mahkeme öncesi delil zincirinin tamamlanmasına imkân verir.",
+      "convictionThreshold": "Öneri: doğrudan delil + iki bağımsız destek + yalanın dedektif bilgisiyle çürütülmesi.",
+      "lateNoahRescue": "Soruşturma kapanışından sonraya sarkan kurtarma beklemede kalır; ödül verilmez."
+    }
+  },
+  "design": {
+    "mode": "single_player",
+    "role": "killer",
+    "durationRealMinutesTarget": [
+      45,
+      60
+    ],
+    "openingActionsMax": 5,
+    "investigationMinutes": 4320,
+    "investigationTimeOnlyOnActions": true,
+    "prepActionsMax": 2,
+    "trialQuestions": 3,
+    "autosaveSlots": 1,
+    "undo": false,
+    "detectiveMapMarker": false,
+    "suspectDisplay": [
+      "düşük",
+      "orta",
+      "yüksek",
+      "kritik"
+    ],
+    "bonus": {
+      "research_file": 100,
+      "noah_rescue": 50
+    }
+  },
+  "truth": {
+    "victim": "adrian",
+    "killer": "player",
+    "method": "poisoned_drink",
+    "entry": "fire_escape",
+    "witnessSawEntry": "samuel",
+    "witnessSawMurder": null,
+    "employer": "unknown_external",
+    "employerMotive": "relative_lost_in_illegal_experiments",
+    "corpseDiscoveredBy": "elena",
+    "corpseDiscoveryReason": "decomposition_smell",
+    "corpseDiscoveryDelay": "several_days_cutscene"
+  },
+  "characters": [
+    {
+      "id": "player",
+      "role": "hired_killer",
+      "nameSource": "player_input",
+      "knows": [
+        "committed_murder",
+        "fire_escape_entry",
+        "poisoned_drink"
+      ]
+    },
+    {
+      "id": "adrian",
+      "name": "Adrian Voss",
+      "role": "victim_ceo",
+      "status": "dead"
+    },
+    {
+      "id": "detective",
+      "name": "Dedektif",
+      "role": "investigator",
+      "initialKnowledge": [
+        "corpse_found"
+      ],
+      "knowledgeRule": "only_discovered_or_reported"
+    },
+    {
+      "id": "samuel",
+      "name": "Samuel Reed",
+      "role": "entry_witness",
+      "knows": [
+        "player_used_fire_escape_on_murder_night"
+      ],
+      "doesNotKnow": [
+        "murder",
+        "poisoning"
+      ]
+    },
+    {
+      "id": "daniel",
+      "name": "Daniel Mercer",
+      "role": "lab_director",
+      "knows": [
+        "argument_with_adrian",
+        "lab_operations"
+      ]
+    },
+    {
+      "id": "elena",
+      "name": "Elena Brooks",
+      "role": "assistant",
+      "knows": [
+        "office_routine",
+        "found_body"
+      ]
+    },
+    {
+      "id": "marcus",
+      "name": "Marcus Hale",
+      "role": "security_guard",
+      "knows": [
+        "security_operations"
+      ]
+    },
+    {
+      "id": "noah",
+      "name": "Noah Bennett",
+      "role": "captive_test_subject",
+      "knows": [
+        "illegal_experiments",
+        "adrian_responsible",
+        "daniel_adrian_argument"
+      ],
+      "doesNotKnow": [
+        "player_is_killer",
+        "player_murder_time_alibi"
+      ]
+    }
+  ],
+  "locations": [
+    {
+      "id": "fire_escape",
+      "label": "Yangın merdiveni",
+      "neighbors": [
+        "corridor"
+      ],
+      "features": [
+        "samuel_encounter"
+      ]
+    },
+    {
+      "id": "corridor",
+      "label": "Koridor",
+      "neighbors": [
+        "fire_escape",
+        "office",
+        "security",
+        "laboratory",
+        "lobby"
+      ]
+    },
+    {
+      "id": "office",
+      "label": "Adrian’ın çalışma odası",
+      "neighbors": [
+        "corridor"
+      ],
+      "features": [
+        "glass",
+        "threat_notes",
+        "hidden_card",
+        "fake_footprint"
+      ]
+    },
+    {
+      "id": "security",
+      "label": "Güvenlik odası",
+      "neighbors": [
+        "corridor"
+      ],
+      "access": [
+        "hidden_card",
+        "lockpick"
+      ],
+      "features": [
+        "lobby_footage",
+        "marcus"
+      ]
+    },
+    {
+      "id": "laboratory",
+      "label": "Laboratuvar",
+      "neighbors": [
+        "corridor"
+      ],
+      "features": [
+        "computer",
+        "password_clues",
+        "noah_cell"
+      ]
+    },
+    {
+      "id": "lobby",
+      "label": "Lobi",
+      "neighbors": [
+        "corridor"
+      ],
+      "features": [
+        "camera_view",
+        "elena",
+        "marcus"
+      ]
+    }
+  ],
+  "stateDefaults": {
+    "phase": "opening",
+    "openingMovesRemaining": 5,
+    "investigationElapsedMinutes": 0,
+    "prepMovesRemaining": 2,
+    "playerName": null,
+    "flags": {
+      "glass_cleaned": false,
+      "card_found": false,
+      "threat_notes_removed": false,
+      "fake_footprint": false,
+      "samuel_present": null,
+      "samuel_silenced": false,
+      "camera_footage_exists": false,
+      "camera_footage_deleted": false,
+      "camera_viewed_by_detective": false,
+      "password_unlocked": false,
+      "file_copied": false,
+      "file_sent": false,
+      "computer_log_exists": false,
+      "computer_log_deleted": false,
+      "noah_promise": false,
+      "noah_help_choice": null,
+      "noah_rescued": false,
+      "player_charged": false
+    },
+    "detectiveKnowledge": [],
+    "evidenceCollected": [],
+    "statements": [],
+    "randomRolls": {},
+    "score": 0
+  },
+  "evidence": [
+    {
+      "id": "glass_fingerprint",
+      "location": "office",
+      "initial": "present",
+      "playerAction": "clean_glass",
+      "directLink": "player",
+      "identification": "single_roll_when_examined",
+      "admissibility": "if_collected_and_identified"
+    },
+    {
+      "id": "threat_notes",
+      "location": "office",
+      "initial": "present",
+      "author": "unknown_no_reveal",
+      "effect": "unidentified_other_enmity",
+      "noDirectConviction": true
+    },
+    {
+      "id": "fake_footprint",
+      "location": "office",
+      "initial": "absent",
+      "playerAction": "plant_footprint",
+      "effect": "hypothesis_of_another_person",
+      "noDirectConviction": true
+    },
+    {
+      "id": "samuel_testimony",
+      "source": "samuel",
+      "initial": "not_reported",
+      "content": "player_seen_at_fire_escape_on_murder_night",
+      "notProofOfMurder": true
+    },
+    {
+      "id": "lobby_footage",
+      "location": "security",
+      "initial": "no_player_footage",
+      "createdBy": "player_enters_lobby_during_investigation",
+      "cannotShow": "initial_fire_escape_entry"
+    },
+    {
+      "id": "lab_access_log",
+      "location": "laboratory",
+      "initial": "absent",
+      "createdBy": "copy_file",
+      "canDelete": true,
+      "deletionMayBeDetected": true
+    },
+    {
+      "id": "file_transmission_log",
+      "location": "laboratory",
+      "initial": "absent",
+      "createdBy": "send_research",
+      "noDirectConviction": true
+    },
+    {
+      "id": "noah_argument_testimony",
+      "source": "noah",
+      "content": "daniel_and_adrian_argued_over_experiments",
+      "noDirectConviction": true
+    },
+    {
+      "id": "research_file",
+      "location": "laboratory",
+      "initial": "password_protected",
+      "effect": "secondary_mission_and_rescue_trigger"
+    }
+  ],
+  "actions": [
+    {
+      "id": "inspect_glass",
+      "phase": [
+        "opening",
+        "investigation"
+      ],
+      "location": "office",
+      "minutes": 0,
+      "openingMoves": 0,
+      "text": "Bardağı incele."
+    },
+    {
+      "id": "clean_glass",
+      "phase": [
+        "opening",
+        "investigation"
+      ],
+      "location": "office",
+      "openingMoves": 1,
+      "minutes": 10,
+      "requires": [
+        "glass_fingerprint_present",
+        "not_collected"
+      ],
+      "effects": [
+        {
+          "set": "flags.glass_cleaned",
+          "value": true
+        },
+        {
+          "setEvidence": "glass_fingerprint",
+          "value": "cleaned"
+        }
+      ]
+    },
+    {
+      "id": "search_drawer",
+      "phase": [
+        "opening",
+        "investigation"
+      ],
+      "location": "office",
+      "openingMoves": 1,
+      "minutes": 10,
+      "effects": [
+        {
+          "discover": "ordinary_papers"
+        }
+      ]
+    },
+    {
+      "id": "find_hidden_card",
+      "phase": [
+        "opening",
+        "investigation"
+      ],
+      "location": "office",
+      "openingMoves": 1,
+      "minutes": 10,
+      "effects": [
+        {
+          "set": "flags.card_found",
+          "value": true
+        },
+        {
+          "grantItem": "security_card"
+        }
+      ]
+    },
+    {
+      "id": "inspect_threat_notes",
+      "phase": [
+        "opening",
+        "investigation"
+      ],
+      "location": "office",
+      "minutes": 0,
+      "openingMoves": 0,
+      "effects": [
+        {
+          "discover": "threat_notes"
+        }
+      ]
+    },
+    {
+      "id": "remove_threat_notes",
+      "phase": [
+        "opening",
+        "investigation"
+      ],
+      "location": "office",
+      "openingMoves": 1,
+      "minutes": 10,
+      "requires": [
+        "not_collected"
+      ],
+      "effects": [
+        {
+          "set": "flags.threat_notes_removed",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "plant_footprint",
+      "phase": [
+        "opening",
+        "investigation"
+      ],
+      "location": "office",
+      "openingMoves": 1,
+      "minutes": 30,
+      "requires": [
+        "not_collected"
+      ],
+      "effects": [
+        {
+          "set": "flags.fake_footprint",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "leave_opening",
+      "phase": [
+        "opening"
+      ],
+      "location": "office",
+      "minutes": 0,
+      "openingMoves": 0,
+      "effects": [
+        {
+          "set": "phase",
+          "value": "investigation"
+        },
+        {
+          "set": "openingMovesRemaining",
+          "value": 0
+        },
+        {
+          "trigger": "body_discovery_cutscene"
+        },
+        {
+          "moveTo": "fire_escape"
+        }
+      ]
+    },
+    {
+      "id": "peek_door",
+      "phase": [
+        "investigation"
+      ],
+      "minutes": 5,
+      "condition": "door_allows_peek",
+      "effects": [
+        {
+          "reveal": "partial_room_occupancy"
+        }
+      ]
+    },
+    {
+      "id": "lockpick_security",
+      "phase": [
+        "investigation"
+      ],
+      "location": "corridor",
+      "minutes": 30,
+      "randomCheck": "lockpick_attempt",
+      "effectsOnSuccess": [
+        {
+          "unlock": "security"
+        }
+      ]
+    },
+    {
+      "id": "use_security_card",
+      "phase": [
+        "investigation"
+      ],
+      "location": "corridor",
+      "minutes": 5,
+      "requires": [
+        "flags.card_found"
+      ],
+      "effects": [
+        {
+          "unlock": "security"
+        }
+      ]
+    },
+    {
+      "id": "delete_camera",
+      "phase": [
+        "investigation"
+      ],
+      "location": "security",
+      "minutes": 20,
+      "requires": [
+        "camera_footage_exists",
+        "not_under_observation"
+      ],
+      "effects": [
+        {
+          "set": "flags.camera_footage_deleted",
+          "value": true
+        },
+        {
+          "set": "flags.camera_footage_exists",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "submit_password",
+      "phase": [
+        "investigation"
+      ],
+      "location": "laboratory",
+      "minutesOnWrong": 10,
+      "minutesOnCorrect": 0,
+      "answer": "N170412",
+      "unlimitedAttempts": true,
+      "effectsOnCorrect": [
+        {
+          "set": "flags.password_unlocked",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "copy_research",
+      "phase": [
+        "investigation"
+      ],
+      "location": "laboratory",
+      "minutes": 15,
+      "requires": [
+        "flags.password_unlocked",
+        "not_flags.file_copied"
+      ],
+      "effects": [
+        {
+          "set": "flags.file_copied",
+          "value": true
+        },
+        {
+          "set": "flags.computer_log_exists",
+          "value": true
+        },
+        {
+          "awardOnce": 100
+        }
+      ]
+    },
+    {
+      "id": "delete_computer_log",
+      "phase": [
+        "investigation"
+      ],
+      "location": "laboratory",
+      "minutes": 20,
+      "requires": [
+        "flags.computer_log_exists"
+      ],
+      "effects": [
+        {
+          "set": "flags.computer_log_deleted",
+          "value": true
+        },
+        {
+          "set": "flags.computer_log_exists",
+          "value": false
+        },
+        {
+          "mayDiscover": "log_tampering"
+        }
+      ]
+    },
+    {
+      "id": "send_research",
+      "phase": [
+        "investigation"
+      ],
+      "location": "laboratory",
+      "minutes": 15,
+      "requires": [
+        "flags.file_copied",
+        "not_flags.file_sent"
+      ],
+      "effects": [
+        {
+          "set": "flags.file_sent",
+          "value": true
+        },
+        {
+          "scheduleAfterMinutes": 360,
+          "event": "noah_rescue"
+        },
+        {
+          "createEvidence": "file_transmission_log"
+        }
+      ]
+    }
+  ],
+  "randomChecks": [
+    {
+      "id": "samuel_presence",
+      "rollOnceAt": "investigation_return",
+      "chance": 0.6,
+      "outcomes": [
+        "present",
+        "absent"
+      ],
+      "tunable": true
+    },
+    {
+      "id": "lockpick_attempt",
+      "rollEachAttempt": true,
+      "chanceByAttempt": [
+        0.2,
+        0.35,
+        0.5,
+        0.65
+      ],
+      "repeatLast": true,
+      "tunable": true
+    },
+    {
+      "id": "fingerprint_identity_match",
+      "rollOnceAt": "fingerprint_examined",
+      "chance": 0.35,
+      "tunable": true,
+      "effectOnSuccess": "detective_identifies_player"
+    }
+  ],
+  "dialogues": [
+    {
+      "id": "samuel_first",
+      "character": "samuel",
+      "trigger": "samuel_present_and_first_encounter",
+      "opening": "Seni tanıyorum. O gece de bu taraftaydın.",
+      "choices": [
+        {
+          "id": "deny",
+          "text": "Yanlış kişiyi hatırlıyorsun.",
+          "effects": [
+            "samuel_trust_down"
+          ]
+        },
+        {
+          "id": "persuade",
+          "text": "Bunu aramızda tutabilir miyiz?",
+          "effects": [
+            "conditional_silence_attempt"
+          ]
+        },
+        {
+          "id": "bribe",
+          "text": "Sana yardım edebilirim.",
+          "effects": [
+            "bribe_size_branch"
+          ]
+        },
+        {
+          "id": "ask",
+          "text": "Burada ne gördün?",
+          "effects": [
+            "learn_samuel_saw_entry"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "marcus_security",
+      "character": "marcus",
+      "trigger": "marcus_in_security",
+      "opening": "Buraya herkes giremez. Ne arıyorsun?",
+      "choices": [
+        {
+          "id": "claim_authority",
+          "text": "Güvenlik kontrolü için gönderildim.",
+          "effects": [
+            "statement_recorded",
+            "verify_against_known_facts"
+          ]
+        },
+        {
+          "id": "ask_footage",
+          "text": "Bir kayıt hakkında soru soracaktım.",
+          "effects": [
+            "conversation_only_no_delete_permission"
+          ]
+        },
+        {
+          "id": "leave",
+          "text": "Yanlış kapı.",
+          "effects": [
+            "attempt_exit"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "noah_first",
+      "character": "noah",
+      "trigger": "enter_noah_cell_view",
+      "opening": "Beni buradan çıkarabilir misin?",
+      "choices": [
+        {
+          "id": "promise",
+          "text": "Araştırma kayıtlarını bulup yetkililere göndereceğim.",
+          "effects": [
+            {
+              "set": "flags.noah_promise",
+              "value": true
+            }
+          ]
+        },
+        {
+          "id": "ask_experiments",
+          "text": "Önce bana burada ne olduğunu anlat.",
+          "effects": [
+            "learn_illegal_experiments"
+          ]
+        },
+        {
+          "id": "ask_daniel",
+          "text": "Daniel hakkında ne biliyorsun?",
+          "effects": [
+            "learn_argument"
+          ]
+        },
+        {
+          "id": "decline",
+          "text": "Söz veremem.",
+          "effects": [
+            "no_promise"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "noah_help",
+      "character": "noah",
+      "trigger": "noah_promise",
+      "choices": [
+        {
+          "id": "truthful_help",
+          "text": "Kurtulduğunda benim sana yardım ettiğimi anlat.",
+          "effects": [
+            {
+              "set": "flags.noah_help_choice",
+              "value": "truthful_help"
+            }
+          ]
+        },
+        {
+          "id": "daniel_info",
+          "text": "Daniel ile Adrian arasındaki tartışmayı anlat.",
+          "effects": [
+            {
+              "set": "flags.noah_help_choice",
+              "value": "daniel_info"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "detective_encounter",
+      "character": "detective",
+      "trigger": "same_location",
+      "logic": "branch_on_detective_actual_knowledge",
+      "choices": [
+        "truthful_answer",
+        "lie",
+        "evasive_answer",
+        "attempt_leave"
+      ],
+      "effects": [
+        "record_significant_statement",
+        "compare_only_with_known_evidence"
+      ]
+    }
+  ],
+  "timedEvents": [
+    {
+      "id": "body_discovery_cutscene",
+      "trigger": "leave_opening",
+      "effects": [
+        "elena_finds_body_due_to_smell",
+        "investigation_starts",
+        "detective_enters_building"
+      ]
+    },
+    {
+      "id": "detective_collects_evidence",
+      "trigger": "detective_visits_relevant_location",
+      "effects": [
+        "collect_only_available_evidence",
+        "update_detectiveKnowledge"
+      ]
+    },
+    {
+      "id": "noah_rescue",
+      "trigger": "360_minutes_after_send_research",
+      "requires": [
+        "investigation_still_active"
+      ],
+      "effects": [
+        {
+          "set": "flags.noah_rescued",
+          "value": true
+        },
+        {
+          "awardOnce": 50
+        },
+        "noah_automatically_questioned_according_to_agreement"
+      ]
+    },
+    {
+      "id": "early_charge",
+      "trigger": "evidence_threshold_for_player_reached",
+      "effects": [
+        {
+          "set": "flags.player_charged",
+          "value": true
+        },
+        {
+          "set": "phase",
+          "value": "pretrial"
+        }
+      ]
+    },
+    {
+      "id": "investigation_deadline",
+      "trigger": "investigationElapsedMinutes>=4320",
+      "effects": [
+        "evaluate_evidence",
+        "start_trial_if_player_charged",
+        "otherwise_resolve_other_suspect_or_unsolved"
+      ]
+    }
+  ],
+  "investigation": {
+    "suspects": [
+      "player",
+      "daniel",
+      "elena",
+      "marcus"
+    ],
+    "suspicionLevels": [
+      "low",
+      "medium",
+      "high",
+      "critical"
+    ],
+    "suspicionNotEquivalentToGuilt": true,
+    "chargeRule": {
+      "requires": [
+        "strong_direct_link_to_person_and_murder",
+        "independent_supporting_finding",
+        "counterevidence_considered"
+      ],
+      "doNotChargeOn": [
+        "motive_alone",
+        "fake_footprint_alone",
+        "suspicion_alone"
+      ]
+    },
+    "detectiveKnowledgePersistAfterEvidenceDeletion": true,
+    "cameraPreviouslyViewedNoCopy": "detective_remembers_but_recording_unavailable",
+    "playerCannotSubmitEvidenceDirectly": true,
+    "anonymousTipSystem": false,
+    "suspectLevelsVisibleOnlyIfLearnable": true
+  },
+  "pretrial": {
+    "onlyWhenPlayerCharged": true,
+    "actionsMax": 2,
+    "newLocationDiscovery": false,
+    "allowed": [
+      "review_existing_statements",
+      "select_defense_strategy",
+      "review_available_noah_testimony"
+    ]
+  },
+  "trial": {
+    "onlyWhenPlayerCharged": true,
+    "questionCount": 3,
+    "mode": "dialogue_only",
+    "questions": [
+      {
+        "id": "presence",
+        "prompt": "Veyron Biyoteknoloji binasında ne arıyordunuz?",
+        "choices": [
+          {
+            "id": "job",
+            "text": "Bir iş görüşmesi için gelmiştim."
+          },
+          {
+            "id": "meeting",
+            "text": "Oradaki biriyle görüşmek istiyordum."
+          },
+          {
+            "id": "admit_presence",
+            "text": "Binaya girdiğimi kabul ediyorum, ama cinayetle ilgim yok."
+          }
+        ]
+      },
+      {
+        "id": "strongest_evidence",
+        "promptSelector": [
+          {
+            "when": "fingerprint_collected_and_matched",
+            "text": "Bardaktaki izinizi nasıl açıklıyorsunuz?"
+          },
+          {
+            "when": "samuel_testimony_known",
+            "text": "Yangın merdivenini kullandınız mı?"
+          },
+          {
+            "when": "lobby_footage_known",
+            "text": "Bu kayıtta neden görünüyorsunuz?"
+          },
+          {
+            "when": "lab_log_known",
+            "text": "Laboratuvara neden girdiniz?"
+          },
+          {
+            "otherwise": true,
+            "text": "Cinayet gecesi neredeydiniz?"
+          }
+        ],
+        "choicesTemplate": [
+          "admit_limited_fact",
+          "deny",
+          "offer_alternative_explanation"
+        ]
+      },
+      {
+        "id": "closing",
+        "prompt": "Hakkınızdaki iddialara karşı son sözünüz nedir?",
+        "choicesTemplate": [
+          "maintain_prior_story",
+          "admit_limited_facts_deny_murder",
+          "emphasize_other_explanations"
+        ]
+      }
+    ],
+    "verdictRule": "evaluate_admissible_evidence_plus_independent_support_and_defense_consistency_not_dialogue_only"
+  },
+  "endings": [
+    {
+      "id": "PLAYER_CONVICTED",
+      "enabled": true,
+      "requires": [
+        "player_charged",
+        "conviction_standard_met"
+      ],
+      "mainGoalSuccess": false
+    },
+    {
+      "id": "PLAYER_ACQUITTED",
+      "enabled": true,
+      "requires": [
+        "player_charged",
+        "conviction_standard_not_met"
+      ],
+      "mainGoalSuccess": true
+    },
+    {
+      "id": "UNSOLVED",
+      "enabled": true,
+      "requires": [
+        "no_suspect_conviction_standard_met"
+      ],
+      "mainGoalSuccess": true
+    },
+    {
+      "id": "DANIEL_CONVICTED",
+      "enabled": false,
+      "draft": true,
+      "blockedBy": "missing_independent_conviction_evidence_chain"
+    },
+    {
+      "id": "ELENA_CONVICTED",
+      "enabled": false,
+      "draft": true,
+      "blockedBy": "missing_independent_conviction_evidence_chain"
+    },
+    {
+      "id": "MARCUS_CONVICTED",
+      "enabled": false,
+      "draft": true,
+      "blockedBy": "missing_independent_conviction_evidence_chain"
+    }
+  ],
+  "finalReportFields": [
+    "case_outcome",
+    "main_goal_success",
+    "decisive_evidence",
+    "detective_discoveries",
+    "exposed_lies",
+    "altered_evidence",
+    "noah_status",
+    "secondary_mission_score",
+    "causal_summary"
+  ],
+  "openIssues": [
+    {
+      "id": "wrongful_convictions",
+      "severity": "blocking_for_three_endings",
+      "question": "Daniel, Elena ve Marcus için cinayetle bağımsız bağlantı kuran somut kanıt zincirleri eklensin mi, yoksa bu finaller v1 dışı mı kalsın?"
+    },
+    {
+      "id": "engine_schema",
+      "severity": "blocking_for_direct_import",
+      "question": "v0.1 TypeScript tipleri veya çalışan örnek senaryo JSON dosyası gerekli."
+    },
+    {
+      "id": "investigation_rules",
+      "severity": "implementation",
+      "question": "Kanıt toplama zamanlaması, kesin suçlama ve hüküm eşikleri motorla eşlenmeli."
+    },
+    {
+      "id": "full_dialogue_branches",
+      "severity": "content",
+      "question": "Örnek konuşmalar tüm dalları kapsamıyor; uygulama için genişletilmeli."
+    },
+    {
+      "id": "noah_late_rescue",
+      "severity": "design",
+      "question": "Soruşturma bitiminden sonraya sarkan kurtarma final raporunda beklemede mi sayılacak?"
+    },
+    {
+      "id": "time_balance",
+      "severity": "tuning",
+      "question": "Önerilen süreler 45–60 gerçek dakikalık oynanış testine göre ayarlanmalı."
+    }
+  ],
+  "sourceDocument": "OLUMCUL_PROJE_TAM_SENARYO.md"
+}
