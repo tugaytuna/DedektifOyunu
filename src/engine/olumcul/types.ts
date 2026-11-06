@@ -11,6 +11,18 @@ export interface StoryChoice { id: string; text: string; effects?: (StoryEffect 
 export interface StoryDialogue { id: string; character: string; trigger: string; opening?: string; logic?: string; choices: StoryChoice[] | string[]; effects?: (StoryEffect | string)[] }
 export interface StoryRandomCheck { id: string; rollOnceAt?: string; rollEachAttempt?: boolean; chance?: number; chanceByAttempt?: number[]; repeatLast?: boolean; outcomes?: string[]; tunable?: boolean; effectOnSuccess?: string }
 export interface StoryTimedEvent { id: string; trigger: string; requires?: string[]; effects: (StoryEffect | string)[] }
+export interface StoryScenarioPresentation {
+  intro: { title: string; subtitle: string; paragraphs: string[]; action: string };
+  openingBriefing: { title: string; paragraphs: string[]; action: string };
+  chapterTransition: { title: string; paragraphs: string[]; action: string };
+  tutorials: Record<string, { title: string; body: string }>;
+  hotspotDescriptions: Record<string, string>;
+  feedback: Record<string, { title: string; body: string }>;
+  resultDetails: Record<string, Array<{ title: string; body: string }>>;
+  passwordClues: { title: string; summary: string; details: Array<{ title: string; body: string }> };
+  events: Record<string, { title: string; body: string }>;
+  tasks: Record<string, { title: string; body: string }>;
+}
 export interface StoryScenario {
   id: string; title: string; schemaVersion: string; locale: string;
   design: { openingActionsMax: number; investigationMinutes: number; prepActionsMax: number; trialQuestions: number; bonus: Record<string, number> };
@@ -22,6 +34,7 @@ export interface StoryScenario {
   endings: Array<{ id: string; enabled: boolean; requires: string[]; mainGoalSuccess: boolean }>;
   finalReportFields: string[];
   truth: Record<string, unknown>;
+  presentation: StoryScenarioPresentation;
   engineCompatibility: { adapterVersion: number; travelMinutes: number; detectiveVisits: Array<{ at: number; location: string }>; chargeRule: { directEvidence: string; corroborationEvidence: string[]; minimumCorroboration: number; counterevidence: string[] }; convictionRule: { directEvidence: string; minimumIndependentSupport: number; requiresExposedLie: boolean }; trialResponses: Record<string, Record<string, string>>; assumptions: Record<string, string> };
 }
 

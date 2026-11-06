@@ -1,17 +1,21 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { canCharge, createStoryState, dispatchStoryAction, loadStoryState, saveStoryState, storyActionBlockReason, STORY_SAVE_KEY } from "@/engine/olumcul/game";
 import { dialogueById, storyScenario } from "@/engine/olumcul/scenario";
 import type { StoryCommand, StoryGameState } from "@/engine/olumcul/types";
 
-type StoryTab = "map" | "inventory" | "notes" | "people";
+type StoryTab = "tasks" | "map" | "inventory" | "notes" | "people";
+type ActionResultView = { title: string; summary: string; details?: Array<{ title: string; body: string }> };
+type StoryOverlay = "intro" | "briefing" | "chapter" | null;
+type TutorialHint = { title: string; body: string } | null;
 const locationTitle = (id: string) => storyScenario.locations.find((place) => place.id === id)?.label ?? id;
 const actionLabel: Record<string, string> = {
   inspect_glass: "Bardağı incele", clean_glass: "Bardaktaki izi temizle", search_drawer: "Çekmeceyi ara", find_hidden_card: "Gizli kartı bul",
   inspect_threat_notes: "Tehdit notlarını incele", remove_threat_notes: "Notları ortadan kaldır", plant_footprint: "Sahte ayak izi yerleştir",
   leave_opening: "Binadan ayrıl", peek_door: "Kapıdan dinle", lockpick_security: "Güvenlik kapısını maymuncukla dene",
-  use_security_card: "Güvenlik kartını kullan", delete_camera: "Kamera kaydını sil", submit_password: "Şifreyi dene",
+  use_security_card: "Güvenlik kartını kullan", delete_camera: "Kamera kaydını sil", inspect_lobby: "Lobiyi incele", submit_password: "Şifreyi dene",
   copy_research: "Araştırma dosyasını kopyala", delete_computer_log: "Erişim kaydını sil", send_research: "Dosyayı yetkililere gönder"
 };
 const choiceLabel: Record<string, string> = {
@@ -23,39 +27,82 @@ const sceneHotspots: Record<string, [number, number]> = {
   inspect_glass: [43, 43], clean_glass: [43, 43], search_drawer: [77, 68], find_hidden_card: [61, 56],
   inspect_threat_notes: [25, 68], remove_threat_notes: [25, 68], plant_footprint: [84, 79], leave_opening: [83, 25],
   peek_door: [76, 36], lockpick_security: [76, 36], use_security_card: [76, 36], delete_camera: [48, 42],
+  inspect_lobby: [54, 54], talk_elena: [76, 63], talk_marcus: [73, 36],
   submit_password: [55, 42], copy_research: [43, 58], delete_computer_log: [66, 58], send_research: [75, 72]
 };
 function hotspotPosition(id: string, index: number): { left: string; top: string } {
   const [left, top] = sceneHotspots[id] ?? [[25, 35], [50, 35], [75, 35], [35, 65], [65, 65]][index % 5];
   return { left: `${left}%`, top: `${top}%` };
 }
+function keepFocusInModal(event: ReactKeyboardEvent<HTMLElement>) {
+  if (event.key !== "Tab") return;
+  const focusable = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled]),[href],[tabindex]:not([tabindex="-1"])'));
+  if (!focusable.length) { event.preventDefault(); return; }
+  const first = focusable[0], last = focusable[focusable.length - 1];
+  const active = document.activeElement;
+  if (event.shiftKey && (active === first || !event.currentTarget.contains(active))) { event.preventDefault(); last.focus(); }
+  else if (!event.shiftKey && (active === last || !event.currentTarget.contains(active))) { event.preventDefault(); first.focus(); }
+}
 
 export default function OlumculGame() {
   const [game, setGame] = useState<StoryGameState>(() => createStoryState());
   const [ready, setReady] = useState(false);
-  const [activeTab, setActiveTab] = useState<StoryTab>("map");
+  const [activeTab, setActiveTab] = useState<StoryTab>("tasks");
   const [playerName, setPlayerName] = useState("");
   const [toast, setToast] = useState("");
+  const [actionResult, setActionResult] = useState<ActionResultView | null>(null);
+  const [storyOverlay, setStoryOverlay] = useState<StoryOverlay>(null);
+  const [tutorialHint, setTutorialHint] = useState<TutorialHint>(null);
+  const [pulseHotspots, setPulseHotspots] = useState(false);
   const [password, setPassword] = useState("");
   const [dialogueId, setDialogueId] = useState<string | null>(null);
   const [arrivalLabel, setArrivalLabel] = useState("");
 
   useEffect(() => {
     const loaded = loadStoryState(localStorage.getItem(STORY_SAVE_KEY));
-    if (loaded) setGame(loaded);
+    if (loaded) {
+      setGame(loaded);
+      if (loaded.flags.ui_intro_seen !== true) setStoryOverlay("intro");
+      else if (loaded.phase === "opening" && loaded.flags.ui_briefing_seen !== true) setStoryOverlay("briefing");
+      else if (loaded.phase === "investigation" && loaded.locationId === "fire_escape" && loaded.flags.ui_chapter_seen !== true) setStoryOverlay("chapter");
+    }
     setReady(true);
   }, []);
   useEffect(() => { if (ready) localStorage.setItem(STORY_SAVE_KEY, saveStoryState(game)); }, [game, ready]);
   useEffect(() => { if (!arrivalLabel) return; const timer = window.setTimeout(() => setArrivalLabel(""), 1800); return () => window.clearTimeout(timer); }, [arrivalLabel]);
+  useEffect(() => { if (!toast) return; const timer = window.setTimeout(() => setToast(""), 5200); return () => window.clearTimeout(timer); }, [toast]);
   useEffect(() => {
-    if (dialogueId || game.phase !== "investigation") return;
+    if (!storyOverlay) return;
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") dismissStoryOverlay(); };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [storyOverlay]);
+  useEffect(() => {
+    const selector = storyOverlay ? ".story-cinematic-card" : actionResult ? ".action-result" : dialogueId ? ".dialogue-card" : null;
+    if (!selector) return;
+    const modal = document.querySelector<HTMLElement>(selector);
+    if (!modal) return;
+    const focusable = () => Array.from(modal.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled]),[href],[tabindex]:not([tabindex="-1"])'));
+    focusable()[0]?.focus();
+    const keepTab = (event: KeyboardEvent) => {
+      if (event.key !== "Tab" || event.defaultPrevented) return;
+      const items = focusable();
+      if (!items.length) { event.preventDefault(); return; }
+      const first = items[0], last = items[items.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !modal.contains(document.activeElement))) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && (document.activeElement === last || !modal.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
+    };
+    window.addEventListener("keydown", keepTab);
+    return () => window.removeEventListener("keydown", keepTab);
+  }, [actionResult, dialogueId, storyOverlay]);
+  useEffect(() => {
+    if (storyOverlay || actionResult || toast || tutorialHint || dialogueId || game.phase !== "investigation") return;
     const candidate = game.detectiveEncounterAvailable && game.flags.dialogue_completed_detective_encounter !== true ? "detective_encounter"
       : game.samuelPresent && game.locationId === "fire_escape" && game.flags.dialogue_completed_samuel_first !== true ? "samuel_first"
-      : game.locationId === "security" && game.unlockedLocations.includes("security") && game.flags.dialogue_completed_marcus_security !== true ? "marcus_security"
       : game.locationId === "laboratory" && game.flags.password_unlocked === true && game.flags.dialogue_completed_noah_first !== true ? "noah_first"
       : game.locationId === "laboratory" && game.flags.noah_promise === true && game.flags.dialogue_completed_noah_help !== true ? "noah_help" : null;
     if (candidate) setDialogueId(candidate);
-  }, [dialogueId, game]);
+  }, [actionResult, dialogueId, game, storyOverlay, toast, tutorialHint]);
 
   const currentLocation = useMemo(() => storyScenario.locations.find((place) => place.id === game.locationId)!, [game.locationId]);
   const availableActions = storyScenario.actions.filter((action) => action.phase.includes(game.phase) && (!action.location || action.location === game.locationId) && !storyActionBlockReason(game, action.id));
@@ -71,51 +118,175 @@ export default function OlumculGame() {
     laboratory: "/scenes/laboratory.svg"
   } as Record<string, string>)[game.locationId] ?? "/scenes/study.svg";
 
+  function startNewGame(name = playerName || game.playerName || "Oyuncu") {
+    const fresh = createStoryState(name, Date.now());
+    setGame(fresh);
+    setStoryOverlay("intro");
+    setActionResult(null);
+    setToast("");
+    setTutorialHint(null);
+    setDialogueId(null);
+  }
+
+  function dismissStoryOverlay() {
+    if (!storyOverlay) return;
+    const flag = storyOverlay === "intro" ? "ui_intro_seen" : storyOverlay === "briefing" ? "ui_briefing_seen" : "ui_chapter_seen";
+    setGame((current) => ({ ...current, flags: { ...current.flags, [flag]: true } }));
+    if (storyOverlay === "intro") setStoryOverlay("briefing");
+    else {
+      if (storyOverlay === "briefing") {
+        setPulseHotspots(true);
+        window.setTimeout(() => setPulseHotspots(false), 5500);
+      }
+      setStoryOverlay(null);
+    }
+  }
+
+  function useTutorial(id: string, state: StoryGameState): { state: StoryGameState; hint: TutorialHint } {
+    const key = `tutorial_${id}_seen`;
+    const copy = storyScenario.presentation.tutorials[id];
+    if (!copy || state.flags[key] === true) return { state, hint: null };
+    return { state: { ...state, flags: { ...state.flags, [key]: true } }, hint: copy };
+  }
+
+  function selectTab(tab: StoryTab) {
+    setActiveTab(tab);
+    if (tab !== "notes") return;
+    const tutored = useTutorial("notebook", game);
+    if (tutored.hint) { setGame(tutored.state); setTutorialHint(tutored.hint); }
+  }
+
   function perform(command: StoryCommand) {
     const result = dispatchStoryAction(game, command);
-    if (result.error) { setToast(result.error); return; }
-    setGame(result.state);
+    if (result.error) { setActionResult(null); setToast(result.error); return; }
+    let nextState = result.state;
+    setToast("");
+    setTutorialHint(null);
+    if (command.type === "action" && command.actionId === "leave_opening") {
+      setGame(nextState);
+      setActionResult(null);
+      setStoryOverlay("chapter");
+      return;
+    }
+    let tutorialId: string | null = null;
+    if (command.type === "dialogue" && command.dialogueId === "detective_encounter") tutorialId = "detective";
+    else if (command.type === "action" && ["inspect_glass", "search_drawer", "find_hidden_card", "inspect_threat_notes"].includes(command.actionId)) tutorialId = "evidence";
+    else if ((command.type === "move" && command.locationId === "laboratory") || (command.type === "action" && nextState.locationId === "laboratory")) tutorialId = "laboratory";
+    else if (nextState.investigationElapsedMinutes > game.investigationElapsedMinutes && nextState.phase === "investigation") tutorialId = "time";
+    let tutorial: TutorialHint = null;
+    if (tutorialId) {
+      const tutored = useTutorial(tutorialId, nextState);
+      nextState = tutored.state;
+      tutorial = tutored.hint;
+    }
+    setGame(nextState);
     if (command.type === "move") {
       setArrivalLabel(locationTitle(result.state.locationId));
-      setToast(result.notifications.filter((message) => !message.startsWith(`${locationTitle(result.state.locationId)} konumuna geçtin.`)).join(" "));
-    } else setToast(result.notifications.join(" "));
+      const message = result.notifications.filter((item) => !item.startsWith(`${locationTitle(result.state.locationId)} konumuna geçtin.`)).join(" ");
+      const foundPasswordClues = command.locationId === "laboratory" && game.flags.password_clues_found !== true && nextState.flags.password_clues_found === true;
+      if (foundPasswordClues) {
+        setActionResult({
+          title: storyScenario.presentation.passwordClues.title,
+          summary: storyScenario.presentation.passwordClues.summary,
+          details: [...storyScenario.presentation.passwordClues.details, ...(tutorial ? [{ title: tutorial.title, body: tutorial.body }] : [])]
+        });
+      } else {
+        if (message) setToast(message);
+        if (tutorial) setTutorialHint(tutorial);
+      }
+    } else {
+      const notification = result.notifications.join(" ") || "Eylem tamamlandı.";
+      const newFacts = result.state.playerKnowledge.filter((fact) => !game.playerKnowledge.includes(fact));
+      const noahRescued = game.flags.noah_rescued !== true && nextState.flags.noah_rescued === true;
+      const important = command.type === "action" && ["inspect_glass", "clean_glass", "search_drawer", "find_hidden_card", "inspect_threat_notes", "remove_threat_notes", "plant_footprint", "leave_opening", "peek_door", "lockpick_security", "use_security_card", "delete_camera", "inspect_lobby", "submit_password", "copy_research", "delete_computer_log", "send_research"].includes(command.actionId)
+        || command.type === "dialogue" || command.type === "trial" || command.type === "pretrial" || command.type === "charge" || noahRescued || nextState.phase === "pretrial" && game.phase !== "pretrial";
+      if (important && notification) {
+        let title = command.type === "action" ? actionLabel[command.actionId] ?? "Eylem sonucu"
+          : command.type === "dialogue" ? "Görüşme kaydedildi"
+          : command.type === "charge" ? "Resmî suçlama"
+          : command.type === "trial" ? "Mahkeme yanıtı kaydedildi" : "Hazırlık tamamlandı";
+        let summary = notification;
+        const details = [
+          ...(command.type === "action" ? storyScenario.presentation.resultDetails[command.actionId] ?? [] : []),
+          ...newFacts.map((fact) => ({ title: factLabel(fact), body: factCopy(fact) }))
+        ];
+        if (command.type === "action") {
+          const feedbackKey = command.actionId === "submit_password" ? result.state.flags.password_unlocked ? "submit_passwordCorrect" : "submit_passwordWrong" : command.actionId;
+          const feedback = storyScenario.presentation.feedback[feedbackKey];
+          if (feedback) { title = feedback.title; summary = feedback.body; }
+        }
+        if (nextState.phase === "pretrial" && game.phase !== "pretrial") {
+          title = storyScenario.presentation.events.charge.title;
+          summary = storyScenario.presentation.events.charge.body;
+        }
+        if (noahRescued) {
+          title = storyScenario.presentation.events.noahRescued.title;
+          summary = storyScenario.presentation.events.noahRescued.body;
+        }
+        if (tutorial) details.unshift({ title: tutorial.title, body: tutorial.body });
+        setActionResult({ title, summary, details: details.length ? details : undefined });
+      } else {
+        setToast(notification);
+        if (tutorial) setTutorialHint(tutorial);
+      }
+    }
+    if (command.type === "move" && nextState.phase === "pretrial" && game.phase !== "pretrial") {
+      setActionResult({ title: storyScenario.presentation.events.charge.title, summary: storyScenario.presentation.events.charge.body });
+    }
     if (command.type === "dialogue") setDialogueId(null);
     if (command.type === "action" && command.actionId === "submit_password" && result.state.flags.password_unlocked) setPassword("");
   }
 
   if (!ready) return <main className="boot-screen">DOSYA DOĞRULANIYOR…</main>;
-  if (game.phase === "ending") return <StoryEnding game={game} restart={() => { const fresh = createStoryState(game.playerName, Date.now()); setGame(fresh); setToast("Yeni bir soruşturma başladı."); }} />;
-  if (!game.playerName && game.phase === "opening") return <main className="story-intro"><article className="story-cover"><span className="eyebrow">KRİMİNAL ARŞİV BÜROSU · DOSYA 01</span><div className="cover-mark">ÖP</div><h1>Ölümcül<br/>Proje</h1><p>Bu dosya açılış sahnesiyle başlar. İlk bölümde en fazla beş ücretli hamlen var; incelemeler ücretsiz. Hazır olduğunda soruşturma saatini başlatabilirsin.</p><label htmlFor="player-name">DOSYADAKİ ADIN</label><input id="player-name" value={playerName} onChange={(event)=>setPlayerName(event.target.value)} placeholder="Adını yaz" maxLength={40}/><button className="primary-button" onClick={()=>setGame(createStoryState(playerName||"Oyuncu", Date.now()))}>DOSYAYI AÇ <span>→</span></button><small>Yerel otomatik kayıt · Geri alma yok · Ses kapalı</small></article></main>;
+  if (game.phase === "ending") return <StoryEnding game={game} restart={() => startNewGame(game.playerName)} />;
+  if (!game.playerName && game.phase === "opening") return <main className="story-intro"><article className="story-cover"><span className="eyebrow">KRİMİNAL ARŞİV BÜROSU · DOSYA 01</span><div className="cover-mark">ÖP</div><h1>Ölümcül<br/>Proje</h1><p>Yeni dosyanı aç. Operasyonun ayrıntıları başlamadan önce aktarılacak.</p><label htmlFor="player-name">DOSYADAKİ ADIN</label><input id="player-name" value={playerName} onChange={(event)=>setPlayerName(event.target.value)} placeholder="Adını yaz" maxLength={40}/><button className="primary-button" onClick={()=>startNewGame(playerName||"Oyuncu")}>YENİ DOSYA AÇ <span>→</span></button><small>Yerel otomatik kayıt · Geri alma yok · Ses kapalı</small></article></main>;
 
   const phaseLabel = game.phase === "opening" ? "CİNAYET SONRASI" : game.phase === "investigation" ? "SORUŞTURMA" : game.phase === "pretrial" ? "DURUŞMA HAZIRLIĞI" : "MAHKEME";
   const dialogue = dialogueId ? dialogueById(dialogueId) : undefined;
+  const speaker = dialogue ? storyScenario.characters.find((character) => character.id === dialogue.character) : undefined;
+  const speakerName = speaker?.id === "player" ? game.playerName : speaker?.name ?? (dialogueId === "detective_encounter" ? "Dedektif" : "Kişi");
+  const speakerInitials = speakerName.split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase();
   const displayChoices = dialogue && Array.isArray(dialogue.choices) ? dialogue.choices.filter((choice): choice is Exclude<typeof choice, string> => typeof choice !== "string") : [];
   const trialQuestion = game.phase === "trial" ? storyScenario.trial.questions[Object.keys(game.trialAnswers).length] : undefined;
   const selectedTrialPrompt = trialQuestion?.prompt ?? trialQuestion?.promptSelector?.find((item)=>item.when==="fingerprint_collected_and_matched"&&game.detectiveKnowledge.includes("fingerprint_collected_and_matched"))?.text ?? trialQuestion?.promptSelector?.find((item)=>item.when==="samuel_testimony_known"&&game.detectiveKnowledge.includes("player_used_fire_escape_on_murder_night"))?.text ?? trialQuestion?.promptSelector?.find((item)=>item.when==="lobby_footage_known"&&game.detectiveKnowledge.includes("lobby_footage_known"))?.text ?? trialQuestion?.promptSelector?.find((item)=>item.when==="lab_log_known"&&game.detectiveKnowledge.includes("lab_log_known"))?.text ?? trialQuestion?.promptSelector?.find((item)=>item.otherwise)?.text;
   const trialChoices = trialQuestion?.choices ?? trialQuestion?.choicesTemplate?.map((id)=>({id,text:choiceLabel[id]??id}));
 
   return <main className="app-shell story-shell">
-    <header className="topbar"><div className="brand"><div className="brand-mark">ÖP</div><div><span className="eyebrow">KRİMİNAL ARŞİV BÜROSU</span><strong>ÖLÜMCÜL PROJE</strong></div></div><div className="case-clock"><span className="status-dot"/>{phaseLabel}{game.phase==="investigation"&&<> <i>•</i> GÜN {String(day).padStart(2,"0")} · {clock}<span className="case-status">KALAN {Math.floor(timeLeft/60)} SAAT {timeLeft%60} DK</span></>}</div><div className="top-actions"><span className="file-number">{game.playerName}</span><button className="icon-button" title="Yeni oyun" aria-label="Yeni oyun" onClick={()=>{if(window.confirm("Mevcut dosyan silinip yeniden başlatılsın mı?"))setGame(createStoryState(game.playerName));}}>↺</button></div></header>
+    <header className="topbar"><div className="brand"><div className="brand-mark">ÖP</div><div><span className="eyebrow">KRİMİNAL ARŞİV BÜROSU</span><strong>ÖLÜMCÜL PROJE</strong></div></div><div className="case-clock"><span className="status-dot"/>{phaseLabel}{game.phase==="investigation"&&<> <i>•</i> GÜN {String(day).padStart(2,"0")} · {clock}<span className="case-status">KALAN {Math.floor(timeLeft/60)} SAAT {timeLeft%60} DK</span></>}</div><div className="top-actions"><span className="file-number">{game.playerName}</span><button className="icon-button" title="Yeni oyun" aria-label="Yeni oyun" onClick={()=>{if(window.confirm("Mevcut dosyan silinip yeniden başlatılsın mı?"))startNewGame(game.playerName);}}>↺</button></div></header>
     <div className="workspace story-workspace">
-      <section className="scene-column"><div className="scene-heading"><div><span className="eyebrow">MEVCUT KONUM / {currentLocation.id.toUpperCase()}</span><h1>{currentLocation.label}</h1><p>{game.phase==="opening"?`Açılış hamleleri: ${game.openingMovesRemaining} ücretli hamle`:currentLocation.features?.join(" · ")??"Soruşturma alanı"}</p></div><div className="scene-stamp">SAHA<br/>KAYDI <b>●</b></div></div>
-        <div className="scene-frame"><img key={placeImage} className="scene-image" src={placeImage} alt={`${currentLocation.label} atmosferik sahnesi`}/><div className="scene-wash"/>{arrivalLabel&&<div className="scene-arrival" role="status">YENİ KONUM <b>{arrivalLabel}</b></div>}<div className="story-scene-overlay"><span className="eyebrow">{phaseLabel} · {storyScenario.title.toUpperCase()}</span><h2>{currentLocation.label}</h2><p>{game.phase==="opening"?"Nesneleri incele veya hazır olduğunda hemen binadan ayrıl.":"Görseldeki nesne ve geçiş noktalarını seçerek etkileşime geç."}</p></div>{availableActions.map((action,index)=><div className="scene-hotspot-wrap" key={action.id} style={hotspotPosition(action.id,index)}>{action.id==="submit_password"&&<input className="hotspot-password" aria-label="Laboratuvar şifresi" value={password} onChange={(event)=>setPassword(event.target.value)} placeholder="Şifre"/>}<button className={`hotspot${action.id==="leave_opening"?" hotspot-exit":""}`} aria-label={actionLabel[action.id]??action.text??action.id} title={actionLabel[action.id]??action.text??action.id} onClick={()=>perform({type:"action",actionId:action.id,...(action.id==="submit_password"?{answer:password}:{})})}><span>{action.id==="leave_opening"?"↗":action.id==="submit_password"?"⌕":"＋"}</span><b>{actionLabel[action.id]??action.text??action.id}<small>{game.phase==="opening"?(action.openingMoves?`${action.openingMoves} ücretli hamle`:`ücretsiz inceleme`):action.minutes!=null?`${action.minutes} dk`:"etkileşim"}</small></b></button></div>)}{game.phase==="investigation"&&<button className="wait-button scene-wait" onClick={()=>perform({type:"wait",minutes:60})}>60 DK BEKLE <span>＋</span></button>}<div className="scene-caption"><span>{storyScenario.title.toUpperCase()} // {currentLocation.label.toUpperCase()}</span><span>{game.phase==="opening"?`${game.openingMovesRemaining} HAMLE`:`${Math.floor(timeLeft/60)} SAAT KALDI`}</span></div></div>
+      <section className="scene-column"><div className="scene-heading"><div><span className="eyebrow">MEVCUT KONUM / {currentLocation.id.toUpperCase()}</span><h1>{currentLocation.label}</h1><p>{game.phase==="opening"?"Açılışta süre işlemez. Etrafı incele veya hazır olduğunda ayrıl.":currentLocation.features?.join(" · ")??"Soruşturma alanı"}</p></div><div className="scene-stamp">SAHA<br/>KAYDI <b>●</b></div></div>
+        <div className="scene-frame"><img key={placeImage} className="scene-image" src={placeImage} alt={`${currentLocation.label} atmosferik sahnesi`}/><div className="scene-wash"/>{arrivalLabel&&<div className="scene-arrival" role="status">YENİ KONUM <b>{arrivalLabel}</b></div>}<div className="story-scene-overlay"><span className="eyebrow">{phaseLabel} · {storyScenario.title.toUpperCase()}</span><h2>{currentLocation.label}</h2><p>{game.phase==="opening"?"Nesneleri incele veya hazır olduğunda hemen binadan ayr.":"Görseldeki nesne ve geçiş noktalarını seçerek etkileşime geç."}</p></div>{availableActions.map((action,index)=><div className="scene-hotspot-wrap" key={action.id} style={hotspotPosition(action.id,index)}>{action.id==="submit_password"&&<input className="hotspot-password" aria-label="Laboratuvar şifresi" value={password} onChange={(event)=>setPassword(event.target.value)} placeholder="Şifre"/>}<button className={`hotspot${action.id==="leave_opening"?" hotspot-exit":""}${pulseHotspots?" hotspot-onboarding":""}`} aria-label={actionLabel[action.id]??action.text??action.id} title={storyScenario.presentation.hotspotDescriptions[action.id]??actionLabel[action.id]??action.text??action.id} onClick={()=>perform({type:"action",actionId:action.id,...(action.id==="submit_password"?{answer:password}:{})})}><span>{action.id==="leave_opening"?"↗":action.id==="submit_password"?"⌕":"＋"}</span><b>{actionLabel[action.id]??action.text??action.id}<small>{game.phase==="opening"?"Açılış — süre işlemiyor":action.minutes!=null?`${action.minutes} dk`:"etkileşim"}</small></b></button>{storyScenario.presentation.hotspotDescriptions[action.id]&&<span className="hotspot-tooltip" role="tooltip">{storyScenario.presentation.hotspotDescriptions[action.id]}</span>}</div>)}{game.phase==="investigation"&&game.locationId==="lobby"&&<><button className="hotspot scene-person-hotspot" style={hotspotPosition("talk_elena",0)} onClick={()=>setDialogueId("elena_lobby")}><span>EL</span><b>Elena ile konuş<small>Lobi tanığı</small></b></button>{game.flags.marcus_at_lobby===true&&<button className="hotspot scene-person-hotspot" style={hotspotPosition("talk_marcus",1)} onClick={()=>setDialogueId("marcus_security")}><span>MH</span><b>Marcus ile konuş<small>Güvenlik görevlisi</small></b></button>}</>}{game.phase==="investigation"&&<button className="wait-button scene-wait" onClick={()=>perform({type:"wait",minutes:60})}>60 DK BEKLE <span>＋</span></button>}<div className="scene-caption"><span>{storyScenario.title.toUpperCase()} // {currentLocation.label.toUpperCase()}</span><span>{game.phase==="opening"?"AÇILIŞ":`${Math.floor(timeLeft/60)} SAAT KALDI`}</span></div></div>
         {game.phase==="pretrial"&&<PretrialPanel game={game} perform={perform}/>}{game.phase==="trial"&&trialQuestion&&<section className="trial-panel"><span className="eyebrow">MAHKEME · SORU {Object.keys(game.trialAnswers).length+1} / 3</span><h2>{selectedTrialPrompt}</h2><div className="trial-choices">{(trialChoices??[]).map((choice)=><button className="story-action" key={choice.id} onClick={()=>perform({type:"trial",questionId:trialQuestion.id,choiceId:choice.id})}>{choice.text}</button>)}</div></section>}{game.phase==="investigation"&&canCharge(game)&&<button className="charge-button" onClick={()=>perform({type:"charge"})}>DEDEKTİF OYUNCUYU RESMEN SUÇLA <span>→</span></button>}
       </section>
-      <aside className="dossier-panel"><div className="panel-title"><div><span className="eyebrow">VAKA ÇALIŞMA MASASI</span><h2>Dosya İçeriği</h2></div><span className="folder-count">{String(storyScenario.locations.length).padStart(2,"0")}</span></div><nav className="tabs" aria-label="Dosya bölümleri">{(["map","inventory","notes","people"] as StoryTab[]).map((tab)=><button className={activeTab===tab?"active":""} key={tab} onClick={()=>setActiveTab(tab)}>{({map:"Harita",inventory:"Deliller",notes:"Defter",people:"Kişiler"})[tab]}</button>)}</nav><div className="panel-content">
-        {activeTab==="map"&&<div className="panel-section"><div className="mini-map story-map"><div className="map-grid"/><svg viewBox="0 0 300 160" aria-hidden="true"><path d="M24 122 72 95 111 108 154 60 214 68 267 28M72 95 83 35 154 60 183 130 267 28"/></svg>{storyScenario.locations.map((place,index)=><span key={place.id} className={`map-pin ${place.id===game.locationId?"current":""} ${game.unlockedLocations.includes(place.id)?"open":"locked"}`} style={{left:`${15+(index%3)*34}%`,top:`${24+Math.floor(index/3)*46}%`}}>{game.unlockedLocations.includes(place.id)?"●":"×"}</span>)}</div><p className="section-caption">KONUM SEÇ · DEDEKTİFİN YERİ GÖSTERİLMEZ</p>{currentLocation.neighbors.map((id)=>{const destination=storyScenario.locations.find((place)=>place.id===id)!;const locked=!game.unlockedLocations.includes(id);const enterSecurity=destination.id==="security"&&!locked;return <div className="location-row" key={id}><div><b>{destination.label}</b><small>{locked?"Kilitli geçiş":`${storyScenario.engineCompatibility.travelMinutes} dk`}</small></div><button className="travel-button" disabled={locked||game.phase==="pretrial"||game.phase==="trial"} onClick={()=>perform({type:"move",locationId:id})}>{locked?"KİLİTLİ":enterSecurity?"İÇERİ GİR →":"GİT →"}</button></div>})}</div>}
+      <aside className="dossier-panel"><div className="panel-title"><div><span className="eyebrow">VAKA ÇALIŞMA MASASI</span><h2>Dosya İçeriği</h2></div><span className="folder-count">{String(storyScenario.locations.length).padStart(2,"0")}</span></div><nav className="tabs" aria-label="Dosya bölümleri">{(["tasks","map","inventory","notes","people"] as StoryTab[]).map((tab)=><button className={activeTab===tab?"active":""} key={tab} onClick={()=>selectTab(tab)}>{({tasks:"Görevler",map:"Harita",inventory:"Deliller",notes:"Defter",people:"Kişiler"})[tab]}</button>)}</nav><div className="panel-content">
+        {activeTab==="tasks"&&<StoryTasks game={game}/>}
+        {activeTab==="map"&&<div className="panel-section"><div className="mini-map story-map"><div className="map-grid"/><svg viewBox="0 0 300 160" aria-hidden="true"><path d="M24 122 72 95 111 108 154 60 214 68 267 28M72 95 83 35 154 60 183 130 267 28"/></svg>{storyScenario.locations.map((place,index)=><span key={place.id} className={`map-pin ${place.id===game.locationId?"current":""} ${game.unlockedLocations.includes(place.id)?"open":"locked"}`} style={{left:`${15+(index%3)*34}%`,top:`${24+Math.floor(index/3)*46}%`}}>{game.unlockedLocations.includes(place.id)?"●":"×"}</span>)}</div><p className="section-caption">KONUM SEÇ · DEDEKTİFİN YERİ GÖSTERİLMEZ</p>{currentLocation.neighbors.map((id)=>{const destination=storyScenario.locations.find((place)=>place.id===id)!;const locked=!game.unlockedLocations.includes(id);const enterSecurity=destination.id==="security"&&!locked;const securityNeedsListen=enterSecurity&&game.flags.security_occupancy_checked!==true;const securityOccupied=enterSecurity&&game.flags.security_room_occupied===true;return <div className="location-row" key={id}><div><b>{destination.label}</b><small>{locked?"Kilitli geçiş":securityNeedsListen?"Koridordan önce kapıyı dinle":securityOccupied?"Görevlinin ayrılması için 60 dakika bekle":`${storyScenario.engineCompatibility.travelMinutes} dk`}</small></div><button className="travel-button" disabled={locked||securityNeedsListen||securityOccupied||game.phase==="pretrial"||game.phase==="trial"} onClick={()=>perform({type:"move",locationId:id})}>{locked?"KİLİTLİ":securityNeedsListen?"ÖNCE DİNLE":securityOccupied?"60 DK BEKLE":enterSecurity?"İÇERİ GİR →":"GİT →"}</button></div>})}</div>}
         {activeTab==="inventory"&&<div className="panel-section"><p className="section-caption">ENVANTER · {game.inventory.length}</p>{game.inventory.length?game.inventory.map((item)=><div className="evidence-row" key={item}><span className="evidence-icon">▣</span><div><b>{item==="security_card"?"Güvenlik kartı":item}</b><small>Taşınan nesne</small></div></div>):<div className="empty-state"><span>□</span><b>Envanter boş</b><p>Bulduğun nesneler burada görünür.</p></div>}<p className="section-caption evidence-caption">FİZİKSEL DELİL DURUMLARI</p>{storyScenario.evidence.map((item)=>{const entry=game.evidence[item.id];return <div className="evidence-row" key={item.id}><span className="evidence-icon">⌕</span><div><b>{evidenceName(item.id)}</b><small>{physicalText(entry.physical)}{entry.detectiveKnows?" · Dedektif biliyor":" · Dedektif bilmiyor"}</small></div>{entry.admissible&&<span className="verified-mark">MAHKEME</span>}</div>})}</div>}
         {activeTab==="notes"&&<StoryNotebook game={game}/>}{activeTab==="people"&&<StoryPeople game={game}/>}
-      </div><div className="panel-divider"/><div className="field-actions"><span className="eyebrow">AKTİF KARŞILAŞMALAR</span>{game.samuelPresent&&game.locationId==="fire_escape"&&<button className="person-action" onClick={()=>setDialogueId("samuel_first")}><span className="avatar">SR</span><span><b>Samuel Reed</b><small>Giriş tanığı</small></span><span className="arrow">↗</span></button>}{game.locationId==="security"&&<button className="person-action" onClick={()=>setDialogueId("marcus_security")}><span className="avatar">MH</span><span><b>Marcus Hale</b><small>Güvenlik görevlisi</small></span><span className="arrow">↗</span></button>}{game.locationId==="laboratory"&&game.flags.password_unlocked&&<><button className="person-action" onClick={()=>setDialogueId("noah_first")}><span className="avatar">NB</span><span><b>Noah Bennett</b><small>Laboratuvar tanığı</small></span><span className="arrow">↗</span></button>{game.flags.noah_promise===true&&<button className="person-action" onClick={()=>setDialogueId("noah_help")}><span className="avatar">NB</span><span><b>Noah ile yardım anlaşması</b><small>İfade tercihini belirle</small></span><span className="arrow">↗</span></button>}</>}{game.detectiveEncounterAvailable&&<button className="person-action" onClick={()=>setDialogueId("detective_encounter")}><span className="avatar">D</span><span><b>Dedektif ile karşılaşma</b><small>Yanıtını seç</small></span><span className="arrow">↗</span></button>}{!game.samuelPresent&&game.locationId==="fire_escape"&&<p className="muted-copy">Burada görüşülecek kimse yok.</p>}</div><footer className="save-status"><span className="save-led"/> OTOMATİK KAYIT AÇIK <span>TEK YEREL KAYIT</span></footer></aside>
+      </div><div className="panel-divider"/><div className="field-actions"><span className="eyebrow">AKTİF KARŞILAŞMALAR</span>{game.samuelPresent&&game.locationId==="fire_escape"&&<button className="person-action" onClick={()=>setDialogueId("samuel_first")}><span className="avatar">SR</span><span><b>Evsiz Samuel</b><small>Yangın merdiveni tanığı</small></span><span className="arrow">↗</span></button>}{game.locationId==="lobby"&&<button className="person-action" onClick={()=>setDialogueId("elena_lobby")}><span className="avatar">EB</span><span><b>Elena Brooks</b><small>Cesedi bulan asistan</small></span><span className="arrow">↗</span></button>}{game.locationId==="lobby"&&game.flags.marcus_at_lobby===true&&<button className="person-action" onClick={()=>setDialogueId("marcus_security")}><span className="avatar">MH</span><span><b>Marcus Hale</b><small>Güvenlik görevlisi</small></span><span className="arrow">↗</span></button>}{game.locationId==="laboratory"&&game.flags.password_unlocked&&<><button className="person-action" onClick={()=>setDialogueId("noah_first")}><span className="avatar">NB</span><span><b>Noah Bennett</b><small>Laboratuvar tanığı</small></span><span className="arrow">↗</span></button>{game.flags.noah_promise===true&&<button className="person-action" onClick={()=>setDialogueId("noah_help")}><span className="avatar">NB</span><span><b>Noah ile yardım anlaşması</b><small>İfade tercihini belirle</small></span><span className="arrow">↗</span></button>}</>}{game.detectiveEncounterAvailable&&<button className="person-action" onClick={()=>setDialogueId("detective_encounter")}><span className="avatar">D</span><span><b>Dedektif ile karşılaşma</b><small>Yanıtını seç</small></span><span className="arrow">↗</span></button>}{!game.samuelPresent&&game.locationId==="fire_escape"&&<p className="muted-copy">Burada görüşülecek kimse yok.</p>}</div><footer className="save-status"><span className="save-led"/> OTOMATİK KAYIT AÇIK <span>TEK YEREL KAYIT</span></footer></aside>
     </div>
-    {dialogueId&&<div className="overlay" onMouseDown={(event)=>{if(event.target===event.currentTarget)setDialogueId(null)}}><section className="dialogue-card" role="dialog" aria-modal="true"><div className="dialogue-head"><span className="eyebrow">GÖRÜŞME TUTANAĞI · {storyScenario.title.toUpperCase()}</span><button className="close-button" onClick={()=>setDialogueId(null)} aria-label="Kapat">×</button></div><div className="story-dialogue"><div className="portrait-card"><div className="portrait-illustration">{dialogueId==="samuel_first"?"SR":dialogueId==="marcus_security"?"MH":dialogueId.startsWith("noah")?"NB":"D"}</div><span className="eyebrow">GÖRÜŞÜLEN KİŞİ</span><h2>{({samuel_first:"Samuel Reed",marcus_security:"Marcus Hale",noah_first:"Noah Bennett",noah_help:"Noah Bennett",detective_encounter:"Dedektif"})[dialogueId]??"Kişi"}</h2><p>Serbest yazım kapalı</p></div><div className="statement-paper"><span className="paper-kicker">İFADE KAYDI</span><p className="dialogue-prompt">{dialogue?.opening??"Dedektif, bildiği olgularla sınırlı bir yanıt bekliyor."}</p><div className="choice-list">{dialogueId==="detective_encounter"?[{id:"truthful_answer",text:"Doğru bildiğim kadarıyla yanıt ver."},{id:"lie",text:"Yangın merdivenini kullandığımı inkâr et."},{id:"evasive_answer",text:"Yanıt vermekten kaçın."},{id:"attempt_leave",text:"Karşılaşmadan ayrılmayı dene."}].map((choice,index)=><button className="choice-button" key={choice.id} onClick={()=>perform({type:"dialogue",dialogueId,choiceId:choice.id})}><span className="choice-number">0{index+1}</span><span>{choice.text}</span><span className="choice-time">KARAR</span></button>):displayChoices.map((choice,index)=><button className="choice-button" key={choice.id} onClick={()=>perform({type:"dialogue",dialogueId,choiceId:choice.id})}><span className="choice-number">0{index+1}</span><span>{choice.text}</span><span className="choice-time">SEÇ</span></button>)}</div><p className="typewriter-note">ÖNEMLİ BEYANLAR NOT DEFTERİNE EKLENİR</p></div></div></section></div>}
-    {toast&&<div className="overlay action-result-backdrop"><section className="action-result" role="dialog" aria-modal="true" aria-labelledby="action-result-title"><div className="action-result-mark">✓</div><span className="eyebrow">EYLEM SONUCU · {phaseLabel}</span><h2 id="action-result-title">İşlem tamamlandı</h2><p>{toast}</p><button className="primary-button" onClick={()=>setToast("")}>DEVAM ET <span>→</span></button></section></div>}
+    {storyOverlay&&<div className="story-cinematic-backdrop" style={{backgroundImage:`linear-gradient(90deg,rgba(7,10,9,.88),rgba(7,10,9,.76)),url(${placeImage})`}}><section className={`story-cinematic-card${storyOverlay==="briefing"?" opening-briefing":""}`} onKeyDown={keepFocusInModal} role="dialog" aria-modal="true" aria-labelledby="cinematic-title"><span className="eyebrow">KRİMİNAL ARŞİV BÜROSU · {storyScenario.title.toUpperCase()}</span><div className="cinematic-rule"/><h2 id="cinematic-title">{storyOverlay==="intro"?storyScenario.presentation.intro.title:storyOverlay==="briefing"?storyScenario.presentation.openingBriefing.title:storyScenario.presentation.chapterTransition.title}</h2>{storyOverlay==="intro"&&<p className="cinematic-subtitle">{storyScenario.presentation.intro.subtitle}</p>}<div className="cinematic-copy">{(storyOverlay==="intro"?storyScenario.presentation.intro.paragraphs:storyOverlay==="briefing"?storyScenario.presentation.openingBriefing.paragraphs:storyScenario.presentation.chapterTransition.paragraphs).map((paragraph,index)=><p key={index}>{paragraph}</p>)}</div><button className="primary-button" autoFocus onClick={dismissStoryOverlay}>{storyOverlay==="intro"?storyScenario.presentation.intro.action:storyOverlay==="briefing"?storyScenario.presentation.openingBriefing.action:storyScenario.presentation.chapterTransition.action}<span>→</span></button></section></div>}
+    {dialogueId&&<div className="overlay" onMouseDown={(event)=>{if(event.target===event.currentTarget)setDialogueId(null)}}><section className="dialogue-card" role="dialog" aria-modal="true"><div className="dialogue-head"><span className="eyebrow">GÖRÜŞME TUTANAĞI · {storyScenario.title.toUpperCase()}</span><button className="close-button" onClick={()=>setDialogueId(null)} aria-label="Kapat">×</button></div><div className="story-dialogue"><div className="portrait-card"><div className="portrait-illustration" aria-label={`${speakerName} portre yer tutucusu`}>{speakerInitials}</div><span className="eyebrow">KONUŞAN</span><h2>{speakerName}</h2><p>Serbest yazım kapalı</p></div><div className="statement-paper"><span className="paper-kicker">İFADE KAYDI</span><p className="dialogue-prompt">{dialogue?.opening??"Dedektif, bildiği olgularla sınırlı bir yanıt bekliyor."}</p><div className="choice-list">{dialogueId==="detective_encounter"?[{id:"truthful_answer",text:"Doğru bildiğim kadarıyla yanıt ver."},{id:"lie",text:"Yangın merdivenini kullandığımı inkâr et."},{id:"evasive_answer",text:"Yanıt vermekten kaçın."},{id:"attempt_leave",text:"Karşılaşmadan ayrılmayı dene."}].map((choice,index)=><button className="choice-button" key={choice.id} onClick={(event)=>{event.currentTarget.classList.add("choice-selected");perform({type:"dialogue",dialogueId,choiceId:choice.id})}}><span className="choice-number">0{index+1}</span><span>{choice.text}</span><span className="choice-time">KARAR</span></button>):displayChoices.map((choice,index)=><button className="choice-button" key={choice.id} onClick={(event)=>{event.currentTarget.classList.add("choice-selected");perform({type:"dialogue",dialogueId,choiceId:choice.id})}}><span className="choice-number">0{index+1}</span><span>{choice.text}</span><span className="choice-time">SEÇ</span></button>)}</div><p className="typewriter-note">ÖNEMLİ BEYANLAR NOT DEFTERİNE EKLENİR</p></div></div></section></div>}
+    {tutorialHint&&<aside className="tutorial-card" role="status"><button className="tutorial-close" aria-label="Kapat" onClick={()=>setTutorialHint(null)}>×</button><span className="eyebrow">SAHA NOTU</span><h3>{tutorialHint.title}</h3><p>{tutorialHint.body}</p></aside>}
+    {toast&&<div className="story-toast" role="status"><span>SAHA BİLDİRİMİ</span><p>{toast}</p><button onClick={()=>setToast("")} aria-label="Bildirimi kapat">×</button></div>}
+    {actionResult&&<div className="overlay action-result-backdrop" onMouseDown={(event)=>{if(event.target===event.currentTarget)setActionResult(null)}}><section className="action-result action-result-detailed" onKeyDown={keepFocusInModal} role="dialog" aria-modal="true" aria-labelledby="action-result-title"><div className="action-result-mark">✓</div><span className="eyebrow">EYLEM SONUCU · {phaseLabel}</span><h2 id="action-result-title">{actionResult.title}</h2><p>{actionResult.summary}</p>{actionResult.details?.length ? <div className="action-result-details">{actionResult.details.map((detail,index)=><article className="action-result-detail" key={`${detail.title}-${index}`}><span className="eyebrow">DOSYA NOTU</span><h3>{detail.title}</h3><p>{detail.body}</p></article>)}</div>:null}<button className="primary-button" autoFocus onClick={()=>setActionResult(null)}>DEVAM ET <span>→</span></button></section></div>}
   </main>;
 }
 
 function evidenceName(id:string){return ({glass_fingerprint:"Bardaktaki parmak izi",threat_notes:"Tehdit notları",fake_footprint:"Sahte ayak izi",samuel_testimony:"Samuel’in ifadesi",lobby_footage:"Lobi kamera kaydı",lab_access_log:"Laboratuvar erişim kaydı",noah_argument_testimony:"Noah’ın tartışma ifadesi",research_file:"Araştırma dosyası",file_transmission_log:"Dosya iletim kaydı"} as Record<string,string>)[id]??id}
 function physicalText(status:string){return ({absent:"Mevcut değil",present:"Mevcut",discovered:"Keşfedildi",collected:"Toplandı",cleaned:"Temizlendi",removed:"Ortadan kaldırıldı",deleted:"Silindi",tampered:"Kurcalandı"} as Record<string,string>)[status]??status}
-function factLabel(id:string){return ({committed_murder:"Gizli gerçek",fire_escape_entry:"Binaya giriş",poisoned_drink:"Kurbanın içeceği",fingerprint_match:"Bardak izi",fingerprint_unidentified:"Kimliği belirlenemeyen iz",ordinary_papers:"Çekmece kayıtları",threat_notes:"Tehdit notları",player_used_fire_escape_on_murder_night:"Yangın merdivenindeki gözlem",illegal_experiments:"Laboratuvar deneyleri",daniel_adrian_argument:"Daniel ve Adrian arasındaki tartışma",player_entered_lobby:"Lobiye giriş kaydı"} as Record<string,string>)[id]??id.replaceAll("_"," ")}
-function factCopy(id:string){return ({committed_murder:"Bu bilgi yalnızca oyuncuya aittir; dedektife kendiliğinden aktarılmaz.",fire_escape_entry:"Oyuncu, cinayet gecesi yangın merdiveninden binaya girdi.",poisoned_drink:"Adrian Voss zehirli içecekle öldürüldü.",fingerprint_match:"Bardaktaki iz oyuncuyla eşleşti; dedektif bu eşleşmeyi henüz bilmiyor olabilir.",fingerprint_unidentified:"İz için kesin kimlik eşleşmesi çıkmadı.",threat_notes:"Notların yazarı bilinmiyor; kimliği hakkında ek bir hikâye bilgisi yok.",player_used_fire_escape_on_murder_night:"Samuel, oyuncuyu yangın merdiveninde gördü; cinayeti görmedi.",illegal_experiments:"Noah, laboratuvarda yasa dışı deneyler yapıldığını biliyor.",daniel_adrian_argument:"Noah, Daniel ile Adrian’ın deneyler üzerine tartışmasına tanık oldu."} as Record<string,string>)[id]??"Bu bilgi soruşturma notlarına eklendi."}
+function factLabel(id:string){return ({committed_murder:"Gizli gerçek",fire_escape_entry:"Binaya giriş",poisoned_drink:"Kurbanın içeceği",fingerprint_match:"Bardak izi",fingerprint_unidentified:"Kimliği belirlenemeyen iz",ordinary_papers:"Çekmece kayıtları",threat_notes:"Tehdit notları",player_used_fire_escape_on_murder_night:"Yangın merdivenindeki gözlem",illegal_experiments:"Laboratuvar deneyleri",daniel_adrian_argument:"Daniel ve Adrian arasındaki tartışma",player_entered_lobby:"Lobiye giriş kaydı",lab_password_project_code:"Laboratuvar proje kodu",lab_password_reset_date:"Erişim sıfırlama tarihi",lobby_camera_position:"Lobi kamerası",elena_found_body:"Cesedin bulunması"} as Record<string,string>)[id]??id.replaceAll("_"," ")}
+function factCopy(id:string){return ({committed_murder:"Bu bilgi yalnızca oyuncuya aittir; dedektife kendiliğinden aktarılmaz.",fire_escape_entry:"Oyuncu, cinayet gecesi yangın merdiveninden binaya girdi.",poisoned_drink:"Adrian Voss zehirli içecekle öldürüldü.",fingerprint_match:"Bardaktaki iz oyuncuyla eşleşti; dedektif bu eşleşmeyi henüz bilmiyor olabilir.",fingerprint_unidentified:"İz için kesin kimlik eşleşmesi çıkmadı.",threat_notes:"Notların yazarı bilinmiyor; kimliği hakkında ek bir hikâye bilgisi yok.",player_used_fire_escape_on_murder_night:"Samuel, oyuncuyu yangın merdiveninde gördü; cinayeti görmedi.",illegal_experiments:"Noah, laboratuvarda yasa dışı deneyler yapıldığını biliyor.",daniel_adrian_argument:"Noah, Daniel ile Adrian’ın deneyler üzerine tartışmasına tanık oldu.",lab_password_project_code:"Bilgisayarın yanındaki laboratuvar notlarında N-17 proje kodu yer alıyor.",lab_password_reset_date:"Erişim kodunun sıfırlanma tarihi 04/12 olarak not edilmiş.",lobby_camera_position:"Lobi girişinin kamera görüş alanında kaldığını fark ettin.",elena_found_body:"Elena, çalışma odasındaki cesedi bulduktan sonra polise haber verdi."} as Record<string,string>)[id]??"Bu bilgi soruşturma notlarına eklendi."}
+function StoryTasks({game}:{game:StoryGameState}) {
+  const copy = storyScenario.presentation.tasks;
+  const noahKnown = game.flags.password_unlocked === true && game.locationId === "laboratory" || game.playerKnowledge.includes("illegal_experiments");
+  const tasks = [
+    { id:"main", state:game.endingId==="PLAYER_CONVICTED"?"BAŞARISIZ":game.phase==="ending"?"TAMAMLANDI":"AKTİF" },
+    { id:"research", state:game.flags.file_copied===true?"TAMAMLANDI":"AKTİF" },
+    ...(noahKnown?[{id:"noah",state:game.flags.noah_rescued===true?"TAMAMLANDI":game.flags.noah_rescue_pending===true?"SÜRÜYOR":"İSTEĞE BAĞLI"}]:[])
+  ];
+  return <div className="panel-section task-list"><p className="section-caption">OPERASYON ÖNCELİKLERİ · {tasks.length}</p>{tasks.map((task)=><article className={`quest-card quest-${task.id}`} key={task.id}><div className="quest-heading"><h3>{copy[task.id].title}</h3><span>{task.state}</span></div><p>{copy[task.id].body}</p></article>)}<p className="task-footnote">Dosyadaki ilerleme otomatik kaydedilir.</p></div>;
+}
 function StoryNotebook({game}:{game:StoryGameState}){const statements=game.statements;const known=storyScenario.investigation.suspects.filter((suspect)=>game.flags[`suspect_level_known_${suspect}`]===true||suspect==="player"&&game.suspicions.player>0);return <div className="panel-section"><p className="section-caption">OYUNCUNUN ÖĞRENDİKLERİ · {game.playerKnowledge.length}</p>{game.playerKnowledge.map((fact,index)=><article className="note-entry" key={`${fact}-${index}`}><span className="note-time">{game.phase.toUpperCase()} <i>·</i> DOSYA NOTU</span><h3>{factLabel(fact)}</h3><p>{factCopy(fact)}</p></article>)}<p className="section-caption evidence-caption">VERDİĞİM İFADELER · {statements.length}</p>{statements.length?statements.map((statement)=><article className="note-entry statement-entry" key={statement.id}><span className="note-time">{locationTitle(game.locationId).toUpperCase()} <i>·</i> {statement.recipient.toUpperCase()}</span><h3>{statement.value}</h3><p>{statement.contradicted?"Çelişki: dedektifin bildiği bir olguyla doğrulandı.":statement.lie?"İfade kaydedildi; karşıt bilgi dedektife ulaşırsa yeniden değerlendirilecek.":"İfade kaydedildi."}</p></article>):<div className="empty-state"><span>▤</span><b>Henüz ifade yok</b><p>Önemli beyanların burada tutulur.</p></div>}<p className="section-caption evidence-caption">BİLİNEN ŞÜPHE DÜZEYLERİ</p>{known.length?known.map((suspect)=><div className="evidence-row" key={suspect}><span className="evidence-icon">?</span><div><b>{suspect==="player"?game.playerName:suspect.toUpperCase()}</b><small>Sözel şüphe: {suspicionWords[game.suspicions[suspect]]}</small></div></div>):<p className="muted-copy">Henüz güvenilir bir şüphe düzeyi bilgisi edinilmedi.</p>}</div>}
 function StoryPeople({game}:{game:StoryGameState}){return <div className="panel-section">{storyScenario.characters.filter((person)=>person.id!=="adrian"&&person.id!=="detective").map((person)=><article className="person-card" key={person.id}><span className="avatar large">{person.name?.split(" ").map((part)=>part[0]).join("")??person.id.slice(0,2).toUpperCase()}</span><div><span className="eyebrow">{person.role.replaceAll("_"," ")}</span><b>{person.name??person.id}</b><p>{person.id==="samuel"?"Girişe tanıklık etmiş olabilir; cinayeti görmedi.":person.id==="noah"?"Oyuncunun katil olduğunu bilmiyor.":"Hakkında edinilen bilgiler dosyada tutulur."}</p><small>ŞÜPHE DÜZEYİ: {game.flags[`suspect_level_known_${person.id}`]===true?suspicionWords[game.suspicions[person.id]]:"BİLİNMİYOR"}</small></div></article>)}</div>}
 function PretrialPanel({game,perform}:{game:StoryGameState;perform:(command:StoryCommand)=>void}){const options:["review_statements"|"prepare_defense"|"review_noah",string,string][]=[["review_statements","Önceki ifadeleri gözden geçir","ÜCRETSİZ HAZIRLIK HAMLESİ"],["prepare_defense","Savunma yaklaşımı belirle","ÜCRETSİZ HAZIRLIK HAMLESİ"],["review_noah","Noah’ın resmî ifadesini incele","NOAH KURTARILDIYSA"]];return <section className="trial-panel"><span className="eyebrow">DURUŞMA HAZIRLIĞI · {game.pretrialMovesRemaining} HAMLE KALDI</span><h2>Mahkeme başlamadan iki hazırlık hamlesi seç.</h2><div className="trial-choices">{options.map(([id,label,meta])=><button className="story-action" key={id} disabled={game.pretrialChoices.includes(id)||id==="review_noah"&&game.flags.noah_rescued!==true} onClick={()=>perform({type:"pretrial",choiceId:id})}>{label}<small>{meta}</small></button>)}</div></section>}

@@ -8,8 +8,8 @@ const supportedSymbols = new Set([
   "conversation_only_no_delete_permission", "attempt_exit", "learn_illegal_experiments", "learn_argument", "no_promise", "record_significant_statement",
   "compare_only_with_known_evidence", "detective_identifies_player", "fingerprint_collected_and_matched", "samuel_testimony_known", "lobby_footage_known", "lab_log_known",
   "investigation_still_active", "door_allows_peek", "glass_fingerprint_present", "not_collected", "camera_footage_exists", "not_under_observation", "not_flags.file_copied", "flags.file_copied",
-  "samuel_present_and_first_encounter", "marcus_in_security", "enter_noah_cell_view", "noah_promise", "same_location",
-  "leave_opening", "investigation_return", "detective_visits_relevant_location", "fingerprint_examined", "360_minutes_after_send_research", "evidence_threshold_for_player_reached", "investigationElapsedMinutes>=4320"
+  "samuel_present_and_first_encounter", "marcus_in_security", "marcus_at_lobby_after_security_shift", "elena_in_lobby", "learn_elena_found_body", "enter_noah_cell_view", "noah_promise", "same_location",
+  "leave_opening", "investigation_return", "detective_visits_relevant_location", "fingerprint_examined", "60_minutes_after_send_research", "evidence_threshold_for_player_reached", "investigationElapsedMinutes>=300"
 ]);
 const effectKeys = new Set(["set", "value", "setEvidence", "grantItem", "discover", "trigger", "moveTo", "reveal", "unlock", "awardOnce", "scheduleAfterMinutes", "event", "createEvidence", "mayDiscover"]);
 
@@ -20,8 +20,17 @@ function list<T>(value: unknown): value is T[] { return Array.isArray(value); }
 export function validateStoryScenario(input: unknown): StoryScenario {
   const errors: string[] = [];
   if (!isRecord(input)) fail(["Kök değer JSON nesnesi olmalı."]);
-  const requiredRoot = ["id", "title", "schemaVersion", "locale", "design", "investigation", "stateDefaults", "characters", "locations", "evidence", "actions", "dialogues", "randomChecks", "timedEvents", "pretrial", "trial", "endings", "finalReportFields", "truth", "engineCompatibility"];
+  const requiredRoot = ["id", "title", "schemaVersion", "locale", "design", "investigation", "stateDefaults", "characters", "locations", "evidence", "actions", "dialogues", "randomChecks", "timedEvents", "pretrial", "trial", "endings", "finalReportFields", "truth", "engineCompatibility", "presentation"];
   for (const key of requiredRoot) if (!(key in input)) errors.push(`Kök alan eksik: ${key}.`);
+  const presentation = input.presentation;
+  if (!isRecord(presentation)) errors.push("presentation senaryo arayüz metinlerini içeren bir nesne olmalı.");
+  else {
+    for (const key of ["intro", "openingBriefing", "chapterTransition"] as const) {
+      const scene = presentation[key];
+      if (!isRecord(scene) || typeof scene.title !== "string" || typeof scene.action !== "string" || !list(scene.paragraphs) || scene.paragraphs.length === 0 || scene.paragraphs.some((line) => typeof line !== "string")) errors.push(`presentation.${key} başlık, eylem ve metin paragrafları içermeli.`);
+    }
+    for (const key of ["tutorials", "hotspotDescriptions", "feedback", "resultDetails", "passwordClues", "events", "tasks"] as const) if (!isRecord(presentation[key])) errors.push(`presentation.${key} nesne olmalı.`);
+  }
   const ids = (key: string) => {
     const entries = input[key];
     if (!list<Record<string, unknown>>(entries)) { errors.push(`${key} bir liste olmalı.`); return new Set<string>(); }

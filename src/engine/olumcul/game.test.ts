@@ -45,12 +45,12 @@ describe("Ölümcül Proje mekanikleri", () => {
     expect(storyScenario.trial.questionCount).toBe(3);
   });
 
-  it("açılışta ücretsiz incelemeyi saymaz, beş ücretli hamleyi sınırlar ve zamanlayıcıyı sıfırdan başlatır", () => {
+  it("açılış hamle sınırı olmadan zamanlayıcıyı sıfırdan başlatır", () => {
     let state = createStoryState();
     state = act(state, "inspect_glass").state;
     for (const id of ["clean_glass", "search_drawer", "find_hidden_card", "remove_threat_notes", "plant_footprint"]) state = act(state, id).state;
     expect(state.openingMovesRemaining).toBe(0);
-    expect(act(state, "search_drawer").error).toMatch(/beş/);
+    expect(state.investigationElapsedMinutes).toBe(0);
     state = leave(state);
     expect(state.phase).toBe("investigation");
     expect(state.investigationElapsedMinutes).toBe(0);
@@ -78,14 +78,28 @@ describe("Ölümcül Proje mekanikleri", () => {
     expect(restored?.evidence.noah_argument_testimony).toMatchObject({ physical: "absent", admissible: false });
   });
 
-  it("yanlış parola 10 dakika, doğru parola sıfır dakika sürer", () => {
+  it("onboarding ilerlemesini kaydeder ve eski kayıtları açılış sahnelerini geçmiş sayar", () => {
+    const fresh = createStoryState("Test");
+    expect(fresh.flags).toMatchObject({ ui_intro_seen: false, ui_briefing_seen: false, ui_chapter_seen: false, tutorial_evidence_seen: false });
+    const resumed = loadStoryState(saveStoryState({ ...fresh, flags: { ...fresh.flags, ui_intro_seen: true, ui_briefing_seen: true, tutorial_time_seen: true } }));
+    expect(resumed?.flags).toMatchObject({ ui_intro_seen: true, ui_briefing_seen: true, ui_chapter_seen: false, tutorial_time_seen: true });
+
+    const legacy = structuredClone(fresh);
+    delete legacy.flags.ui_intro_seen;
+    delete legacy.flags.ui_briefing_seen;
+    delete legacy.flags.ui_chapter_seen;
+    const migrated = loadStoryState(saveStoryState(legacy));
+    expect(migrated?.flags).toMatchObject({ ui_intro_seen: true, ui_briefing_seen: true, ui_chapter_seen: true });
+  });
+
+  it("yanlış parola 15 dakika, doğru parola sıfır dakika sürer", () => {
     let state = investigation();
     state = { ...state, phase: "investigation", locationId: "laboratory", unlockedLocations: ["laboratory"], flags: { ...state.flags, security_unlocked: true } };
     const wrong = act(state, "submit_password", "NOPE");
-    expect(wrong.state.investigationElapsedMinutes).toBe(10);
+    expect(wrong.state.investigationElapsedMinutes).toBe(15);
     const right = act(wrong.state, "submit_password", "N170412");
     expect(right.state.flags.password_unlocked).toBe(true);
-    expect(right.state.investigationElapsedMinutes).toBe(10);
+    expect(right.state.investigationElapsedMinutes).toBe(15);
   });
 
   it("maymuncuk her denemede 30 dakika harcar, olasılığı artırır ve son eşiği tekrarlar", () => {
@@ -95,7 +109,7 @@ describe("Ölümcül Proje mekanikleri", () => {
       state = act(state, "lockpick_security").state;
       results.push(state.randomRolls[`lockpick_attempt_${attempt}`] as boolean);
       expect(state.randomAttempts.lockpick_attempt).toBe(attempt);
-      expect(state.investigationElapsedMinutes).toBe(attempt * 30);
+      expect(state.investigationElapsedMinutes).toBe(attempt * 45);
     }
     expect(results).toEqual([false, false, false, false, true]);
     expect(state.unlockedLocations).toContain("security");
@@ -104,11 +118,11 @@ describe("Ölümcül Proje mekanikleri", () => {
     expect(state.randomAttempts.lockpick_attempt).toBe(5);
   });
 
-  it("Samuel’in varlığı seed’e göre değişir; yalan ve susturma girişimi şüpheyi etkiler", () => {
+  it("evsiz Samuel yangın merdiveninde karşılaşılır; yalan ve susturma girişimi şüpheyi etkiler", () => {
     const present = leave(createStoryState("Test", 1));
     const absent = leave(createStoryState("Test"));
     expect(present.samuelPresent).toBe(true);
-    expect(absent.samuelPresent).toBe(false);
+    expect(absent.samuelPresent).toBe(true);
     let state = { ...present, locationId: "fire_escape" };
     state = dispatchStoryAction(state, { type: "dialogue", dialogueId: "samuel_first", choiceId: "deny" }).state;
     expect(state.suspicions.player).toBe(1);
@@ -144,10 +158,10 @@ describe("Ölümcül Proje mekanikleri", () => {
     expect(ended.endingId).toBe("UNSOLVED");
   });
 
-  it("soruşturma süresini 72 saatte bitirir ve uzatmaz", () => {
-    const state = { ...investigation(), investigationElapsedMinutes: 4310 };
+  it("soruşturma süresini beş saatte bitirir ve uzatmaz", () => {
+    const state = { ...investigation(), investigationElapsedMinutes: 290 };
     const result = dispatchStoryAction(state, { type: "wait", minutes: 360 });
-    expect(result.state.investigationElapsedMinutes).toBe(4320);
+    expect(result.state.investigationElapsedMinutes).toBe(300);
     expect(result.state.endingId).toBe("UNSOLVED");
   });
 
@@ -167,9 +181,9 @@ describe("Ölümcül Proje mekanikleri", () => {
     state = { ...state, locationId: "laboratory", unlockedLocations: ["laboratory"], flags: { ...state.flags, password_unlocked: true } };
     state = act(state, "copy_research").state;
     state = act(state, "send_research").state;
-    expect(state.eventQueue.find((event) => event.id === "noah_rescue")?.dueAt).toBe(state.investigationElapsedMinutes + 360);
+    expect(state.eventQueue.find((event) => event.id === "noah_rescue")?.dueAt).toBe(state.investigationElapsedMinutes + 60);
     expect(loadStoryState(saveStoryState(state))?.eventQueue).toEqual(state.eventQueue);
-    state = dispatchStoryAction(state, { type: "wait", minutes: 360 }).state;
+    state = dispatchStoryAction(state, { type: "wait", minutes: 60 }).state;
     expect(state.flags.noah_rescued).toBe(true);
     expect(state.score).toBe(150);
     expect(state.evidence.file_transmission_log?.physical).toBe("present");
@@ -218,6 +232,8 @@ describe("Ölümcül Proje mekanikleri", () => {
     state = sendCommand(state, { type: "action", actionId: "use_security_card" });
     state = sendCommand(state, { type: "move", locationId: "lobby" });
     state = sendCommand(state, { type: "move", locationId: "corridor" });
+    state = sendCommand(state, { type: "action", actionId: "peek_door" });
+    state = sendCommand(state, { type: "wait", minutes: 60 });
     state = sendCommand(state, { type: "move", locationId: "security" });
     expect(storyActionBlockReason(state, "delete_camera")).toBeNull();
     state = sendCommand(state, { type: "move", locationId: "corridor" });
@@ -236,8 +252,9 @@ describe("Ölümcül Proje mekanikleri", () => {
     state = sendCommand(state, { type: "move", locationId: "corridor" });
     state = sendCommand(state, { type: "move", locationId: "fire_escape" });
     expect(dispatchStoryAction(state, { type: "dialogue", dialogueId: "samuel_first", choiceId: "ask" }).error).toBeUndefined();
-    state = { ...state, phase: "investigation", locationId: "security", unlockedLocations: [...state.unlockedLocations, "security"] };
+    state = { ...state, phase: "investigation", locationId: "lobby", flags: { ...state.flags, marcus_at_lobby: true } };
     expect(dispatchStoryAction(state, { type: "dialogue", dialogueId: "marcus_security", choiceId: "ask_footage" }).error).toBeUndefined();
+    expect(dispatchStoryAction(state, { type: "dialogue", dialogueId: "elena_lobby", choiceId: "ask_body_discovery" }).error).toBeUndefined();
     state = { ...state, locationId: "laboratory", flags: { ...state.flags, password_unlocked: true } };
     expect(dispatchStoryAction(state, { type: "dialogue", dialogueId: "noah_first", choiceId: "promise" }).error).toBeUndefined();
     expect(dispatchStoryAction(state, { type: "dialogue", dialogueId: "noah_help", choiceId: "truthful_help" }).error).toMatch(/söz/);
@@ -264,10 +281,34 @@ describe("Ölümcül Proje mekanikleri", () => {
     expect(acquitted.endingId).toBe("PLAYER_ACQUITTED");
   });
 
-  it("kalan üçüncü final, oyuncu suçlanmadan 72 saatte ulaşılabilir", () => {
+  it("kalan üçüncü final, oyuncu suçlanmadan beş saatte ulaşılabilir", () => {
     let state = investigation();
     for (let i = 0; i < 12 && state.phase !== "ending"; i++) state = sendCommand(state, { type: "wait", minutes: 360 });
     expect(state.endingId).toBe("UNSOLVED");
+  });
+
+  it("güvenlik odası dinlenince görevli 60 dakika sonra çıkar; odaya giriş karşılaşma başlatmaz", () => {
+    let state: StoryGameState = { ...investigation(), locationId: "corridor", unlockedLocations: ["corridor", "security"], randomRolls: { security_occupancy: true } };
+    state = sendCommand(state, { type: "action", actionId: "peek_door" });
+    expect(state.flags.security_room_occupied).toBe(true);
+    expect(dispatchStoryAction(state, { type: "move", locationId: "security" }).error).toMatch(/Altmış dakika/);
+    state = sendCommand(state, { type: "wait", minutes: 60 });
+    expect(state.flags.security_room_occupied).toBe(false);
+    expect(state.flags.marcus_at_lobby).toBe(true);
+    state = sendCommand(state, { type: "move", locationId: "security" });
+    expect(state.locationId).toBe("security");
+    expect(state.detectiveEncounterAvailable).toBe(false);
+  });
+
+  it("laboratuvara girince parola ipuçları otomatik olarak deftere kaydedilir", () => {
+    let state: StoryGameState = { ...investigation(), locationId: "corridor", unlockedLocations: ["corridor", "laboratory"] };
+    state = sendCommand(state, { type: "move", locationId: "laboratory" });
+    expect(state.flags.password_clues_found).toBe(true);
+    expect(state.playerKnowledge).toContain("lab_password_project_code");
+    expect(state.playerKnowledge).toContain("lab_password_reset_date");
+    state = sendCommand(state, { type: "move", locationId: "corridor" });
+    state = sendCommand(state, { type: "move", locationId: "laboratory" });
+    expect(state.discoveredFacts.filter((fact) => fact.startsWith("lab_password_")).length).toBe(2);
   });
 
   it("senaryo validatorı eksik alan ve bozuk delil referansını reddeder", () => {
@@ -279,11 +320,9 @@ describe("Ölümcül Proje mekanikleri", () => {
     expect(() => validateStoryScenario(broken)).toThrow(/bilinmeyen konum/);
   });
 
-  it("kaynakta henüz etkileşim tanımı olmayan hotspot içeriklerini açıkça saptar", () => {
-    const unhandled = storyScenario.locations.flatMap((place) => (place.features ?? [])
-      .filter((feature) => feature === "password_clues" || feature === "elena")
-      .map((feature) => `${place.id}.${feature}`));
-    expect(unhandled).toEqual(["laboratory.password_clues", "lobby.elena"]);
+  it("laboratuvar şifre notlarını ve Elena’nın lobi diyaloğunu tanımlar", () => {
+    expect(storyScenario.presentation.passwordClues.details).toHaveLength(2);
+    expect(storyScenario.dialogues.some((dialogue) => dialogue.id === "elena_lobby")).toBe(true);
     expect(storyScenario.evidence.find((item) => item.id === "noah_argument_testimony")?.initial ?? null).toBeNull();
   });
 });

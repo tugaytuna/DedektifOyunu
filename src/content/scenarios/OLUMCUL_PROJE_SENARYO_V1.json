@@ -7,22 +7,45 @@
   "engineCompatibility": {
     "adapterVersion": 1,
     "authoringVersion": "1.0.0-authoring",
-    "travelMinutes": 5,
+    "travelMinutes": 10,
     "detectiveVisits": [
-      { "at": 0, "location": "fire_escape" },
-      { "at": 60, "location": "office" },
-      { "at": 150, "location": "lobby" },
-      { "at": 300, "location": "security" },
-      { "at": 600, "location": "laboratory" },
-      { "at": 1200, "location": "office" },
-      { "at": 2100, "location": "security" },
-      { "at": 3300, "location": "laboratory" }
+      {
+        "at": 0,
+        "location": "fire_escape"
+      },
+      {
+        "at": 30,
+        "location": "office"
+      },
+      {
+        "at": 90,
+        "location": "lobby"
+      },
+      {
+        "at": 210,
+        "location": "security"
+      },
+      {
+        "at": 260,
+        "location": "laboratory"
+      },
+      {
+        "at": 290,
+        "location": "office"
+      }
     ],
     "chargeRule": {
       "directEvidence": "glass_fingerprint",
-      "corroborationEvidence": ["samuel_testimony", "lobby_footage", "lab_access_log"],
+      "corroborationEvidence": [
+        "samuel_testimony",
+        "lobby_footage",
+        "lab_access_log"
+      ],
       "minimumCorroboration": 2,
-      "counterevidence": ["threat_notes", "fake_footprint"]
+      "counterevidence": [
+        "threat_notes",
+        "fake_footprint"
+      ]
     },
     "convictionRule": {
       "directEvidence": "glass_fingerprint",
@@ -30,9 +53,21 @@
       "requiresExposedLie": true
     },
     "trialResponses": {
-      "presence": { "admit_presence": "consistent", "job": "unverified", "meeting": "unverified" },
-      "strongest_evidence": { "admit_limited_fact": "consistent", "deny": "contradiction", "offer_alternative_explanation": "unverified" },
-      "closing": { "maintain_prior_story": "recheck", "admit_limited_facts_deny_murder": "consistent", "emphasize_other_explanations": "consistent" }
+      "presence": {
+        "admit_presence": "consistent",
+        "job": "unverified",
+        "meeting": "unverified"
+      },
+      "strongest_evidence": {
+        "admit_limited_fact": "consistent",
+        "deny": "contradiction",
+        "offer_alternative_explanation": "unverified"
+      },
+      "closing": {
+        "maintain_prior_story": "recheck",
+        "admit_limited_facts_deny_murder": "consistent",
+        "emphasize_other_explanations": "consistent"
+      }
     },
     "assumptions": {
       "detectiveVisitCadence": "Öneri: tabloda tanımlı ilk ziyaret takvimi; kullanıcı testiyle ayarlanmalı.",
@@ -48,8 +83,8 @@
       45,
       60
     ],
-    "openingActionsMax": 5,
-    "investigationMinutes": 4320,
+    "openingActionsMax": 0,
+    "investigationMinutes": 300,
     "investigationTimeOnlyOnActions": true,
     "prepActionsMax": 2,
     "trialQuestions": 3,
@@ -65,6 +100,166 @@
     "bonus": {
       "research_file": 100,
       "noah_rescue": 50
+    }
+  },
+  "presentation": {
+    "intro": {
+      "title": "ÖLÜMCÜL PROJE",
+      "subtitle": "Bir cinayet. Bir sır. Beş saatlik bir soruşturma.",
+      "paragraphs": [
+        "Adrian Voss öldü. Veyron Biyoteknoloji’nin güçlü yöneticisi, kendi çalışma odasında son nefesini verdi.",
+        "Onu öldüren kişiyi aramalarına gerek yok. Çünkü o kişi sensin.",
+        "Kimliğini bilmediğin bir işveren, bu cinayet karşılığında sana büyük bir ödeme vaat etti. Ancak görev yalnızca Adrian’ı ortadan kaldırmak değildi. Şirketin gizli laboratuvarında saklanan araştırma dosyasını da ele geçirmen gerekiyor.",
+        "Adrian’ın bedeni henüz bulunmadı. Çalışma odasındasın. Arkanda bıraktığın her iz, ileride sana karşı kullanılabilir. Ve zaman senin lehine işlemiyor."
+      ],
+      "action": "OPERASYONA BAŞLA"
+    },
+    "openingBriefing": {
+      "title": "CİNAYET MAHALLİ",
+      "paragraphs": [
+        "Adrian Voss’un çalışma odasındasın. Ceset henüz bulunmadı.",
+        "Etrafı incele, kanıtları değerlendir veya hemen ayrıl. Açılışta oyun saati ilerlemez; karar senin.",
+        "Karar senin."
+      ],
+      "action": "ANLADIM"
+    },
+    "chapterTransition": {
+      "title": "BİRKAÇ GÜN SONRA…",
+      "paragraphs": [
+        "Adrian Voss’un çalışma odasından yükselen ağır koku sonunda fark edildi.",
+        "Cesedi bulan kişi, asistanı Elena Brooks oldu. Polis binaya geldi. Bir dedektif soruşturmayı devraldı.",
+        "Ve sen, başladığın işi tamamlamak için geri döndün."
+      ],
+      "action": "SORUŞTURMAYA DEVAM ET"
+    },
+    "tutorials": {
+      "evidence": {
+        "title": "KANITLAR",
+        "body": "Bulduğun nesneler soruşturmayı etkileyebilir. Bazı kanıtları inceleyebilir, bazılarına müdahale edebilirsin. Her eylemin farklı bir sonucu olabilir."
+      },
+      "time": {
+        "title": "ZAMAN ÖNEMLİ",
+        "body": "Bazı işlemler oyun saatini ilerletir. Zaman geçtikçe karakterler hareket eder ve soruşturma gelişir."
+      },
+      "detective": {
+        "title": "DİKKATLİ KONUŞ",
+        "body": "Dedektif söylediklerini hatırlar. Daha sonra ortaya çıkan kanıtlar, önceki ifadelerinle karşılaştırılabilir."
+      },
+      "notebook": {
+        "title": "NOT DEFTERİN",
+        "body": "Keşfettiğin bilgiler ve verdiğin önemli ifadeler burada saklanır."
+      },
+      "laboratory": {
+        "title": "GİZLİ ARAŞTIRMA",
+        "body": "Şirketin sakladığı araştırma dosyası burada olabilir. Bilgisayara erişmek için bazı ipuçlarını birleştirmen gerekecek."
+      }
+    },
+    "hotspotDescriptions": {
+      "inspect_glass": "Bardakta sana ait bir iz kalmış olabilir.",
+      "clean_glass": "Bardaktaki görünür izleri temizlemeyi dene.",
+      "search_drawer": "Çalışma masasının çekmecesini araştır.",
+      "find_hidden_card": "Masanın çevresindeki gizli bölmeyi kontrol et.",
+      "inspect_threat_notes": "Kâğıtlardaki yazıları ve işaretleri incele.",
+      "remove_threat_notes": "Notları çalışma odasından kaldır.",
+      "leave_opening": "Çalışma odasından ayrıl ve sonraki aşamaya geç.",
+      "peek_door": "Güvenlik odasının kapısını dinle.",
+      "inspect_lobby": "Lobi girişini ve kamera görüş alanını incele.",
+      "submit_password": "Bilgisayar erişim kodunu gir.",
+      "copy_research": "Araştırma dosyasının bir kopyasını oluştur."
+    },
+    "feedback": {
+      "clean_glass": {
+        "title": "İZ TEMİZLENDİ",
+        "body": "Bardaktaki görünür izleri ortadan kaldırdın. Bu işlem zamanını aldı."
+      },
+      "plant_footprint": {
+        "title": "YENİ BİR İZ",
+        "body": "Çalışma odasında başka birinin bulunmuş olabileceğini düşündüren bir iz bıraktın. Dedektifin bunu nasıl yorumlayacağını henüz bilmiyorsun."
+      },
+      "submit_passwordWrong": {
+        "title": "ERİŞİM REDDEDİLDİ",
+        "body": "Şifre yanlış. 15 dakika geçti. Yeniden deneyebilirsin."
+      },
+      "submit_passwordCorrect": {
+        "title": "ERİŞİM AÇILDI",
+        "body": "Şifre kabul edildi. Bilgisayardaki dosyalara erişebilirsin."
+      }
+    },
+    "resultDetails": {
+      "inspect_threat_notes": [
+        {
+          "title": "Notlardan çıkarılabilen bilgi",
+          "body": "Notların yazarı bilinmiyor. Varlıkları başka olası düşmanlara işaret edebilir; yazarın kimliği hakkında dosyada ek bilgi bulunmuyor."
+        }
+      ],
+      "find_hidden_card": [
+        {
+          "title": "Bulunan nesne",
+          "body": "Güvenlik kartı envanterine eklendi. Bu kart güvenlik odasına erişim sağlayabilir."
+        }
+      ],
+      "copy_research": [
+        {
+          "title": "Dosya durumu",
+          "body": "Araştırma dosyasının bir kopyası envanterine eklendi; laboratuvar erişim kaydı oluştu."
+        }
+      ],
+      "send_research": [
+        {
+          "title": "Sonraki gelişme",
+          "body": "Dosya yetkililere iletildi. Noah için kurtarma olayı bir oyun saati sonrasına planlandı."
+        }
+      ],
+      "peek_door": [
+        {
+          "title": "KAPI DİNLENDİ",
+          "body": "Güvenlik odasında biri varsa, içeri girmeden önce 60 dakika geçmesini bekle. Kişi ayrılınca odaya güvenle girebilirsin."
+        }
+      ],
+      "inspect_lobby": [
+        {
+          "title": "LOBI GÖZLEMİ",
+          "body": "Giriş kamerasının görüş alanını ve kayıt düzenini inceledin. Binaya dönüşün güvenlik kaydında yer alabilir."
+        }
+      ]
+    },
+    "passwordClues": {
+      "title": "LABORATUVAR NOTLARI",
+      "summary": "Bilgisayarın yanındaki dağınık notlarda erişim koduna ait iki ipucu buldun.",
+      "details": [
+        {
+          "title": "Proje kodu",
+          "body": "Güvenlik formunda deney programı N-17 olarak işaretlenmiş."
+        },
+        {
+          "title": "Erişim tarihi",
+          "body": "Bakım çizelgesinde 04/12 tarihi erişim sıfırlama notunun yanında daire içine alınmış."
+        }
+      ]
+    },
+    "events": {
+      "charge": {
+        "title": "RESMÎ SUÇLAMA",
+        "body": "Dedektif soruşturma kapsamında sana resmî suçlama yöneltti. Duruşma öncesinde iki hazırlık hamlen var."
+      },
+      "noahRescued": {
+        "title": "NOAH KURTARILDI",
+        "body": "Noah için gönderdiğin dosya sonuç verdi. Kurtarma tamamlandı ve görev bonusu kaydedildi."
+      }
+    },
+    "tasks": {
+      "main": {
+        "title": "MAHKÛM OLMA",
+        "body": "Cinayet soruşturması boyunca kimliğini ve cinayetle bağlantını gizle."
+      },
+      "research": {
+        "title": "GİZLİ ARAŞTIRMA DOSYASI",
+        "body": "Veyron Biyoteknoloji’nin laboratuvarındaki araştırma dosyasını ele geçir."
+      },
+      "noah": {
+        "title": "NOAH BENNETT",
+        "body": "Laboratuvarda esir tutulan Noah’ın kurtarılmasını sağla."
+      }
     }
   },
   "truth": {
@@ -108,8 +303,8 @@
     },
     {
       "id": "samuel",
-      "name": "Samuel Reed",
-      "role": "entry_witness",
+      "name": "Samuel Reed · Evsiz",
+      "role": "homeless_entry_witness",
       "knows": [
         "player_used_fire_escape_on_murder_night"
       ],
@@ -236,7 +431,7 @@
   ],
   "stateDefaults": {
     "phase": "opening",
-    "openingMovesRemaining": 5,
+    "openingMovesRemaining": 0,
     "investigationElapsedMinutes": 0,
     "prepMovesRemaining": 2,
     "playerName": null,
@@ -245,6 +440,11 @@
       "card_found": false,
       "threat_notes_removed": false,
       "fake_footprint": false,
+      "security_occupancy_checked": false,
+      "security_room_occupied": false,
+      "marcus_at_lobby": false,
+      "password_clues_found": false,
+      "lobby_observed": false,
       "samuel_present": null,
       "samuel_silenced": false,
       "camera_footage_exists": false,
@@ -501,7 +701,7 @@
         "investigation"
       ],
       "location": "corridor",
-      "minutes": 30,
+      "minutes": 45,
       "randomCheck": "lockpick_attempt",
       "effectsOnSuccess": [
         {
@@ -515,7 +715,7 @@
         "investigation"
       ],
       "location": "corridor",
-      "minutes": 5,
+      "minutes": 10,
       "requires": [
         "flags.card_found"
       ],
@@ -531,7 +731,7 @@
         "investigation"
       ],
       "location": "security",
-      "minutes": 20,
+      "minutes": 35,
       "requires": [
         "camera_footage_exists",
         "not_under_observation"
@@ -548,12 +748,29 @@
       ]
     },
     {
+      "id": "inspect_lobby",
+      "phase": [
+        "investigation"
+      ],
+      "location": "lobby",
+      "minutes": 10,
+      "effects": [
+        {
+          "set": "flags.lobby_observed",
+          "value": true
+        },
+        {
+          "discover": "lobby_camera_position"
+        }
+      ]
+    },
+    {
       "id": "submit_password",
       "phase": [
         "investigation"
       ],
       "location": "laboratory",
-      "minutesOnWrong": 10,
+      "minutesOnWrong": 15,
       "minutesOnCorrect": 0,
       "answer": "N170412",
       "unlimitedAttempts": true,
@@ -570,7 +787,7 @@
         "investigation"
       ],
       "location": "laboratory",
-      "minutes": 15,
+      "minutes": 45,
       "requires": [
         "flags.password_unlocked",
         "not_flags.file_copied"
@@ -595,7 +812,7 @@
         "investigation"
       ],
       "location": "laboratory",
-      "minutes": 20,
+      "minutes": 35,
       "requires": [
         "flags.computer_log_exists"
       ],
@@ -619,7 +836,7 @@
         "investigation"
       ],
       "location": "laboratory",
-      "minutes": 15,
+      "minutes": 20,
       "requires": [
         "flags.file_copied",
         "not_flags.file_sent"
@@ -630,7 +847,7 @@
           "value": true
         },
         {
-          "scheduleAfterMinutes": 360,
+          "scheduleAfterMinutes": 60,
           "event": "noah_rescue"
         },
         {
@@ -643,10 +860,20 @@
     {
       "id": "samuel_presence",
       "rollOnceAt": "investigation_return",
-      "chance": 0.6,
+      "chance": 1,
       "outcomes": [
         "present",
         "absent"
+      ],
+      "tunable": true
+    },
+    {
+      "id": "security_occupancy",
+      "rollOnceAt": "peek_door",
+      "chance": 0.65,
+      "outcomes": [
+        "occupied",
+        "empty"
       ],
       "tunable": true
     },
@@ -710,8 +937,8 @@
     {
       "id": "marcus_security",
       "character": "marcus",
-      "trigger": "marcus_in_security",
-      "opening": "Buraya herkes giremez. Ne arıyorsun?",
+      "trigger": "marcus_at_lobby_after_security_shift",
+      "opening": "Güvenlik odasından mı geliyorsun? Burada herkes kayıt altında.",
       "choices": [
         {
           "id": "claim_authority",
@@ -734,6 +961,25 @@
           "effects": [
             "attempt_exit"
           ]
+        }
+      ]
+    },
+    {
+      "id": "elena_lobby",
+      "character": "elena",
+      "trigger": "elena_in_lobby",
+      "opening": "Ben Elena Brooks. Adrian Voss’un asistanıyım. Ne öğrenmek istiyorsun?",
+      "choices": [
+        {
+          "id": "ask_body_discovery",
+          "text": "Cesedi nasıl buldunuz?",
+          "effects": [
+            "learn_elena_found_body"
+          ]
+        },
+        {
+          "id": "end_conversation",
+          "text": "Şimdilik başka sorum yok."
         }
       ]
     },
@@ -840,7 +1086,7 @@
     },
     {
       "id": "noah_rescue",
-      "trigger": "360_minutes_after_send_research",
+      "trigger": "60_minutes_after_send_research",
       "requires": [
         "investigation_still_active"
       ],
@@ -871,7 +1117,7 @@
     },
     {
       "id": "investigation_deadline",
-      "trigger": "investigationElapsedMinutes>=4320",
+      "trigger": "investigationElapsedMinutes>=300",
       "effects": [
         "evaluate_evidence",
         "start_trial_if_player_charged",

@@ -16,8 +16,15 @@ export function createStoryState(playerName = "", seed = FIRST_SEED) : StoryGame
   const rawFlags = (storyScenario.stateDefaults.flags ?? {}) as Record<string, boolean | string | number | null>;
   return {
     scenarioId: storyScenario.id, saveVersion: 2, phase: "opening", locationId: "office", investigationElapsedMinutes: 0,
-    openingMovesRemaining: storyScenario.design.openingActionsMax, pretrialMovesRemaining: storyScenario.design.prepActionsMax,
-    playerName: playerName.trim().slice(0, 40), flags: { ...rawFlags }, inventory: [],
+    openingMovesRemaining: 0, pretrialMovesRemaining: storyScenario.design.prepActionsMax,
+    playerName: playerName.trim().slice(0, 40), flags: {
+      ...rawFlags,
+      security_occupancy_checked: false, security_room_occupied: false, marcus_at_lobby: false,
+      password_clues_found: false, lobby_observed: false,
+      ui_intro_seen: false, ui_briefing_seen: false, ui_chapter_seen: false,
+      tutorial_evidence_seen: false, tutorial_time_seen: false, tutorial_detective_seen: false,
+      tutorial_notebook_seen: false, tutorial_laboratory_seen: false
+    }, inventory: [],
     evidence: Object.fromEntries(storyScenario.evidence.map((item) => [item.id, { physical: initialPhysical(item.initial), detectiveKnows: false, admissible: false }])),
     discoveredFacts: [], playerKnowledge: ["committed_murder", "fire_escape_entry", "poisoned_drink"],
     characterKnowledge: Object.fromEntries(storyScenario.characters.map((character) => [character.id, [...(character.knows ?? character.initialKnowledge ?? [])]])),
@@ -35,6 +42,14 @@ export function loadStoryState(serialized: string | null): StoryGameState | null
     const state = JSON.parse(serialized) as StoryGameState;
     if (state.scenarioId !== storyScenario.id || state.saveVersion !== 2 || !["opening", "investigation", "pretrial", "trial", "ending"].includes(state.phase)) return null;
     if (!Array.isArray(state.eventQueue) || !Array.isArray(state.completedEvents) || !state.evidence || !state.randomRolls) return null;
+    const onboardingKeys = ["ui_intro_seen", "ui_briefing_seen", "ui_chapter_seen"];
+    const legacyOnboardingSave = !onboardingKeys.some((key) => Object.hasOwn(state.flags ?? {}, key));
+    state.flags = {
+      ...createStoryState(state.playerName).flags,
+      ...(state.flags ?? {}),
+      ...(legacyOnboardingSave ? { ui_intro_seen: true, ui_briefing_seen: true, ui_chapter_seen: true } : {})
+    };
+    state.openingMovesRemaining = 0;
     state.evidence = Object.fromEntries(storyScenario.evidence.map((item) => {
       const saved = state.evidence[item.id];
       if (!saved) return [item.id, { physical: initialPhysical(item.initial), detectiveKnows: false, admissible: false }];
@@ -171,6 +186,7 @@ function applyEffect(state: StoryGameState, effect: StoryEffect | string): { sta
       case "attempt_exit": messages.push((next.suspicions.player ?? 0) >= 2 && next.detectiveKnowledge.length > 1 ? "Dedektif çıkışını takip ediyor; henüz ayrılmadın." : "Karşılaşmadan ayrıldın."); next = { ...next, detectiveEncounterAvailable: false }; break;
       case "learn_illegal_experiments": next = note(next, "illegal_experiments", "noah"); messages.push("Noah, laboratuvardaki deneylerden söz ediyor."); break;
       case "learn_argument": next = note(next, "daniel_adrian_argument", "noah"); next = markEvidence(next, "noah_argument_testimony", "discovered"); messages.push("Noah, Daniel ile Adrian arasındaki tartışmaya tanık olduğunu söylüyor."); break;
+      case "learn_elena_found_body": next = note(next, "elena_found_body"); messages.push("Elena, çalışma odasındaki cesedi bulduktan sonra polise haber verdiğini söylüyor."); break;
       case "no_promise": next = { ...next, flags: { ...next.flags, noah_promise: false } }; break;
       case "record_significant_statement": break;
       case "compare_only_with_known_evidence": next = rememberContradictions(next); break;
@@ -252,11 +268,15 @@ function advanceTime(state: StoryGameState, minutes: number): { state: StoryGame
       }
       messages.push("Yetkililer Noah’ı kurtardı. Resmî ifadesi yalnızca bildiği konularla kayda geçti.");
     }
+    if (event.id === "security_guard_leaves" && next.flags.security_room_occupied === true) {
+      next = { ...next, completedEvents: addUnique(next.completedEvents, event.id), flags: { ...next.flags, security_room_occupied: false, marcus_at_lobby: true } };
+      messages.push("Güvenlik odasındaki görevli ayrıldı. Kapı önündeki koridor sessizleşti.");
+    }
   }
   if (to >= MAX_TIME && next.phase === "investigation") {
-    next = { ...next, phase: "ending", endingId: "UNSOLVED", endingReason: "72 saatlik soruşturma süresi doldu; oyuncu resmen suçlanmadı.", flags: { ...next.flags, noah_rescue_pending: (rescuePendingAtDeadline || dueEvents.some((event) => event.id === "noah_rescue")) && next.flags.noah_rescued !== true } };
+    next = { ...next, phase: "ending", endingId: "UNSOLVED", endingReason: "Beş saatlik soruşturma süresi doldu; oyuncu resmen suçlanmadı.", flags: { ...next.flags, noah_rescue_pending: (rescuePendingAtDeadline || dueEvents.some((event) => event.id === "noah_rescue")) && next.flags.noah_rescued !== true } };
     next = { ...next, eventQueue: next.eventQueue.filter((event) => event.id !== "noah_rescue") };
-    messages.push("72 saat doldu. Oyuncu suçlanmadığı için dava çözülemedi.");
+    messages.push("Beş saat doldu. Oyuncu suçlanmadığı için dava çözülemedi.");
   }
   if (next.flags.under_observation === true && next.detectiveEncounterAvailable === false) next = { ...next, flags: { ...next.flags, under_observation: false } };
   return { state: next, messages };
@@ -290,7 +310,6 @@ export function storyActionBlockReason(state: StoryGameState, actionId: string):
   if (actionId === "lockpick_security" && state.unlockedLocations.includes("security")) return "Kapı açık; güvenlik odasına girebilirsin.";
   if (!action.phase.includes(state.phase)) return "Bu aşamada kullanılamaz.";
   if (action.location && action.location !== state.locationId) return "Farklı konumda.";
-  if (action.openingMoves && state.phase === "opening" && action.openingMoves > state.openingMovesRemaining) return "Açılış hamlesi kalmadı.";
   if (state.performedActions.includes(action.id) && !["lockpick_security", "submit_password", "peek_door"].includes(action.id)) return "Tamamlandı.";
   return evaluateRequirements(state, actionId, action.requires, action.condition);
 }
@@ -301,7 +320,6 @@ function runAction(state: StoryGameState, command: Extract<StoryCommand, { type:
   if (!action.phase.includes(state.phase)) return { state, notifications: [], error: "Bu eylem mevcut oyun aşamasında kullanılamaz." };
   if (action.location && action.location !== state.locationId) return { state, notifications: [], error: "Bu eylem için doğru konumda değilsin." };
   if (action.id === "lockpick_security" && state.unlockedLocations.includes("security")) return { state, notifications: [], error: "Kapı zaten açık. Koridordan güvenlik odasına girebilirsin." };
-  if (action.openingMoves && state.phase === "opening" && action.openingMoves > state.openingMovesRemaining) return { state, notifications: [], error: "Açılışta en fazla beş ücretli hamle yapabilirsin. İstersen şimdi çıkabilirsin." };
   if (action.id === "clean_glass" && state.evidence.glass_fingerprint?.physical === "collected") return { state, notifications: [], error: "Dedektif bu izi daha önce topladı; geriye dönük temizlenemez." };
   const issue = evaluateRequirements(state, action.id, action.requires, action.condition);
   if (issue) return { state, notifications: [], error: issue };
@@ -310,7 +328,6 @@ function runAction(state: StoryGameState, command: Extract<StoryCommand, { type:
 
   let next = { ...state, performedActions: addUnique(state.performedActions, action.id), decisionLog: [...state.decisionLog, { ...say(state, action.id, action.text ?? action.id) }] };
   const notifications: string[] = [];
-  if (state.phase === "opening" && action.openingMoves) next = { ...next, openingMovesRemaining: next.openingMovesRemaining - action.openingMoves };
   let cost = action.minutes ?? 0;
   if (action.id === "inspect_glass") {
     const old = next.randomRolls.fingerprint_identity_match;
@@ -338,7 +355,22 @@ function runAction(state: StoryGameState, command: Extract<StoryCommand, { type:
     const correct = (command.answer ?? "").trim().toUpperCase() === action.answer;
     cost = correct ? action.minutesOnCorrect ?? 0 : action.minutesOnWrong ?? 0;
     if (correct) { next = { ...next, flags: { ...next.flags, password_unlocked: true } }; for (const effect of action.effectsOnCorrect ?? []) { const applied = applyEffect(next, effect); next = applied.state; } notifications.push("Şifre kabul edildi. Dosya erişime açıldı."); }
-    else notifications.push("Şifre yanlış. 10 dakika geçti; yeniden deneyebilirsin.");
+    else notifications.push("Şifre yanlış. 15 dakika geçti; yeniden deneyebilirsin.");
+  }
+  if (action.id === "peek_door") {
+    const check = storyScenario.randomChecks.find((item) => item.id === "security_occupancy")!;
+    let occupied = next.randomRolls.security_occupancy;
+    if (typeof occupied !== "boolean") {
+      const result = roll(next);
+      next = result.state;
+      occupied = result.value < (check.chance ?? 0.65);
+      next = { ...next, randomRolls: { ...next.randomRolls, security_occupancy: occupied } };
+    }
+    next = { ...next, flags: { ...next.flags, security_occupancy_checked: true, security_room_occupied: occupied } };
+    if (occupied && !next.eventQueue.some((event) => event.id === "security_guard_leaves") && !next.completedEvents.includes("security_guard_leaves")) {
+      next = { ...next, eventQueue: [...next.eventQueue, { id: "security_guard_leaves", dueAt: next.investigationElapsedMinutes + cost + 60 }] };
+      notifications.push("Kapının ardında birinin olduğunu fark ettin. Altmış dakika sonra oda boşalacak.");
+    } else notifications.push(occupied ? "Güvenlik odasında biri var. Altmış dakika geçmesini bekle." : "Kapının ardında ses yok; güvenlik odası boş görünüyor.");
   }
   for (const effect of action.effects ?? []) { const applied = applyEffect(next, effect); next = applied.state; notifications.push(...applied.messages); }
   if (action.id === "find_hidden_card") next = { ...next, flags: { ...next.flags, card_found: true } };
@@ -352,36 +384,43 @@ function runAction(state: StoryGameState, command: Extract<StoryCommand, { type:
   if (action.id === "copy_research") notifications.push("Dosya kopyalandı; laboratuvar erişim kaydı oluştu.");
   if (action.id === "copy_research") next = markEvidence(next, "lab_access_log", "present");
   if (action.id === "delete_computer_log") { next = markEvidence(next, "lab_access_log", "deleted"); next = { ...next, flags: { ...next.flags, computer_log_deleted: true, computer_log_exists: false } }; }
-  if (action.id === "send_research") { next = { ...next, flags: { ...next.flags, file_sent: true } }; notifications.push("Dosya yetkililere iletildi. Noah için kurtarma olayı altı saat sonrasına planlandı."); }
+  if (action.id === "send_research") { next = { ...next, flags: { ...next.flags, file_sent: true } }; notifications.push("Dosya yetkililere iletildi. Noah için kurtarma olayı bir saat sonrasına planlandı."); }
   if (action.id === "leave_opening") {
     return { state: collectAtVisit(next, 0), notifications };
   }
-  if (action.id === "peek_door") notifications.push("Kapının ardından ses var gibi; içeride kimin olduğunu çıkaramıyorsun.");
   if (action.id === "inspect_threat_notes") { next = markEvidence(next, "threat_notes", "discovered"); next = note(next, "threat_notes"); }
   const advanced = advanceTime(next, cost); next = advanced.state; notifications.push(...advanced.messages);
-  if (action.id === "send_research") next = { ...next, eventQueue: next.eventQueue.map((event) => event.id === "noah_rescue" ? { ...event, dueAt: next.investigationElapsedMinutes + 360 } : event) };
+  if (action.id === "send_research") next = { ...next, eventQueue: next.eventQueue.map((event) => event.id === "noah_rescue" ? { ...event, dueAt: next.investigationElapsedMinutes + 60 } : event) };
   if (!notifications.length) notifications.push("Eylem tamamlandı.");
   return { state: next, notifications };
 }
 
 function runMove(state: StoryGameState, locationId: string): StoryActionResult {
   if (state.phase !== "opening" && state.phase !== "investigation") return { state, notifications: [], error: "Bu aşamada yeni konum keşfedemezsin." };
-  if (state.phase === "opening") return { state, notifications: [], error: "Açılış bölümünde ofisten ayrılamazsın; en fazla beş ücretli hamleden sonra açılışı bitir." };
+  if (state.phase === "opening") return { state, notifications: [], error: "Açılış bölümünde ofisten ayrılamazsın. Hazır olduğunda binadan ayrıl." };
   const current = storyScenario.locations.find((item) => item.id === state.locationId);
   const target = storyScenario.locations.find((item) => item.id === locationId);
   if (!current || !target || !current.neighbors.includes(locationId)) return { state, notifications: [], error: "Bu konuma doğrudan geçiş yok." };
   if (!state.unlockedLocations.includes(locationId)) return { state, notifications: [], error: "Bu konum henüz erişime açık değil." };
+  if (locationId === "security" && state.flags.security_occupancy_checked !== true) return { state, notifications: [], error: "Önce koridordan güvenlik odasının kapısını dinle." };
+  if (locationId === "security" && state.flags.security_room_occupied === true) return { state, notifications: [], error: "Güvenlik odasında biri var. Altmış dakika sonra yeniden deneyebilirsin." };
   let next = { ...state, locationId, unlockedLocations: addUnique(state.unlockedLocations, locationId), decisionLog: [...state.decisionLog, { ...say(state, `move:${locationId}`, target.label) }] };
+  const notifications = [`${target.label} konumuna geçtin.`];
   if (locationId === "lobby" && next.flags.camera_footage_exists !== true && next.flags.camera_footage_deleted !== true) {
     next = { ...next, flags: { ...next.flags, camera_footage_exists: true } };
     next = markEvidence(next, "lobby_footage", "present");
     next = note(next, "player_entered_lobby");
   }
+  if (locationId === "laboratory" && next.flags.password_clues_found !== true) {
+    next = { ...next, flags: { ...next.flags, password_clues_found: true } };
+    next = note(note(next, "lab_password_project_code"), "lab_password_reset_date");
+    notifications.push("Bilgisayarın yanındaki notlarda erişim koduna dair ipuçları buldun.");
+  }
   const advanced = advanceTime(next, storyScenario.engineCompatibility.travelMinutes);
   let moved = advanced.state;
   if (locationId === "laboratory" && moved.phase === "investigation") moved = { ...moved, unlockedLocations: addUnique(moved.unlockedLocations, "laboratory") };
   if (moved.locationId !== state.locationId) moved = { ...moved, detectiveEncounterAvailable: false, flags: { ...moved.flags, under_observation: false } };
-  return { state: moved, notifications: [`${target.label} konumuna geçtin.`, ...advanced.messages] };
+  return { state: moved, notifications: [...notifications, ...advanced.messages] };
 }
 
 function runDialogue(state: StoryGameState, dialogueId: string, choiceId: string): StoryActionResult {
@@ -390,7 +429,8 @@ function runDialogue(state: StoryGameState, dialogueId: string, choiceId: string
   if (state.phase !== "investigation") return { state, notifications: [], error: "Bu görüşme yalnızca soruşturma sırasında yapılabilir." };
   if (state.flags[`dialogue_completed_${dialogueId}`] === true) return { state, notifications: [], error: "Bu görüşme zaten yanıtlandı." };
   if (dialogue.character === "samuel" && (!state.samuelPresent || state.locationId !== "fire_escape")) return { state, notifications: [], error: "Samuel şu anda burada değil." };
-  if (dialogue.character === "marcus" && (state.locationId !== "security" || !state.unlockedLocations.includes("security"))) return { state, notifications: [], error: "Marcus ile konuşmak için güvenlik odasına erişmelisin." };
+  if (dialogue.character === "marcus" && (state.locationId !== "lobby" || state.flags.marcus_at_lobby !== true)) return { state, notifications: [], error: "Marcus şu anda lobide değil." };
+  if (dialogue.character === "elena" && state.locationId !== "lobby") return { state, notifications: [], error: "Elena şu anda lobide değil." };
   if (dialogue.character === "noah" && (state.locationId !== "laboratory" || !state.flags.password_unlocked)) return { state, notifications: [], error: "Noah ile konuşmak için laboratuvar hücresine erişmelisin." };
   if (dialogueId === "noah_help" && state.flags.noah_promise !== true) return { state, notifications: [], error: "Önce Noah’a yardım sözü vermelisin." };
   const entry = choiceById(dialogueId, choiceId);
